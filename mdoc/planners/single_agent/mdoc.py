@@ -39,27 +39,18 @@ def run_diffusion(args: Args):
 
     rng = jax.random.PRNGKey(seed=args.seed)
 
-    ## setup env
-
-    # recommended temperature for envs
+    # setup env
     temp_recommend = {
-        "ant": 0.1,
-        "halfcheetah": 0.4,
-        "hopper": 0.1,
-        "humanoidstandup": 0.1,
-        "humanoidrun": 0.1,
-        "walker2d": 0.1,
-        "pushT": 0.2,
+        "mrmp": 0.1,
     }
     Ndiffuse_recommend = {
-        "pushT": 200,
-        "humanoidrun": 300,
+        "mrmp": 100,
     }
     Nsample_recommend = {
-        "humanoidrun": 8192,
+        "mrmp": 8192,
     }
     Hsample_recommend = {
-        "pushT": 40,
+        "mrmp": 40,
     }
     if not args.disable_recommended_params:
         args.temp_sample = temp_recommend.get(args.env_name, args.temp_sample)

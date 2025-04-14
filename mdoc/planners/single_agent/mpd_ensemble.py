@@ -1,25 +1,4 @@
 """
-MIT License
-
-Copyright (c) 2024 Itamar Mishani
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 """
 
 import os
@@ -35,11 +14,18 @@ from typing import Tuple, List, Dict
 
 from experiment_launcher import single_experiment_yaml, run_experiment
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint
-from mmd.models import TemporalUnet, UNET_DIM_MULTS
-from mmd.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
-from mmd.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
-from mmd.trainer import get_dataset, get_model
-from mmd.utils.loading import load_params_from_yaml
+
+from mdoc.models import TemporalUnet, UNET_DIM_MULTS
+from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
+from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
+from mdoc.trainer import get_dataset, get_model
+from mdoc.utils.loading import load_params_from_yaml
+from mdoc.planners.common import PlannerOutput, SingleAgentPlanner
+from mdoc.models.diffusion_models.diffusion_ensemble import DiffusionsEnsemble
+from mdoc.common.experiences import PathExperience, PathBatchExperience
+from mdoc.common.constraints import MultiPointConstraint
+from mdoc.common.pretty_print import *
+
 from torch_robotics.robots import *
 from torch_robotics.torch_utils.seed import fix_random_seed
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
@@ -47,17 +33,8 @@ from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torc
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints
 from torch_robotics.trajectory.utils import interpolate_traj_via_points
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
-
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
-
-from mmd.planners.single_agent.common import PlannerOutput
-from mmd.planners.single_agent.single_agent_planner_base import SingleAgentPlanner
-from mmd.models.diffusion_models.diffusion_ensemble import DiffusionsEnsemble
-
-from mmd.common.experiences import PathExperience, PathBatchExperience
-from mmd.common.constraints import MultiPointConstraint
-from mmd.common.pretty_print import *
 
 TRAINED_MODELS_DIR = '../../data_trained_models/'
 

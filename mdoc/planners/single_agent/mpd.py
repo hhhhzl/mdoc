@@ -33,14 +33,20 @@ import matplotlib.pyplot as plt
 import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
 from typing import Tuple, List
-
 from experiment_launcher import single_experiment_yaml, run_experiment
+
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint, CostMaxVelocity
-from mmd.models import TemporalUnet, UNET_DIM_MULTS
-from mmd.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
-from mmd.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
-from mmd.trainer import get_dataset, get_model
-from mmd.utils.loading import load_params_from_yaml
+from mdoc.models import TemporalUnet, UNET_DIM_MULTS
+from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
+from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
+from mdoc.trainer import get_dataset, get_model
+from mdoc.utils.loading import load_params_from_yaml
+from mdoc.planners.common.planner_output import PlannerOutput
+from mdoc.planners.common.single_agent_planner_base import SingleAgentPlanner
+from mdoc.common.experiences import PathExperience, PathBatchExperience
+from mdoc.common.constraints import MultiPointConstraint
+from mdoc.common.pretty_print import *
+
 from torch_robotics.robots import *
 from torch_robotics.torch_utils.seed import fix_random_seed
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
@@ -48,11 +54,6 @@ from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torc
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints
 from torch_robotics.trajectory.utils import interpolate_traj_via_points
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
-from mmd.planners.single_agent.common import PlannerOutput
-from mmd.planners.single_agent.single_agent_planner_base import SingleAgentPlanner
-from mmd.common.experiences import PathExperience, PathBatchExperience
-from mmd.common.constraints import MultiPointConstraint
-from mmd.common.pretty_print import *
 
 
 class MPD(SingleAgentPlanner):
