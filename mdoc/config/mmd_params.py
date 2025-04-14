@@ -60,5 +60,5 @@ class MMDParams:
     tensor_args = {'device': device, 'dtype': torch.float32}
 
     # Trained models directory.
-    trained_models_dir_global_fpath = '~/mmd/data_trained_models'  # Modify this.
+    trained_models_dir_global_fpath = '~/mdoc/data_trained_models'  # Modify this.
 

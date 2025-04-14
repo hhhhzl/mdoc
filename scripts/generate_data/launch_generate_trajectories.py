@@ -40,7 +40,7 @@ MEMORY_SINGLE_JOB = 12000
 MEMORY_PER_CORE = N_EXPS_IN_PARALLEL * MEMORY_SINGLE_JOB // N_CORES
 PARTITION = 'gpu' if USE_CUDA else 'amd3,amd2,amd'
 GRES = 'gpu:1' if USE_CUDA else None  # gpu:rtx2080:1, gpu:rtx3080:1, gpu:rtx3090:1, gpu:a5000:1
-CONDA_ENV = 'mmd'
+CONDA_ENV = 'mdoc'
 
 exp_name = f'generate_trajectories'
 

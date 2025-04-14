@@ -1,4 +1,4 @@
-name: mmd
+name: mdoc
 channels:
   - pytorch
   - conda-forge

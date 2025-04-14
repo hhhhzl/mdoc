@@ -30,7 +30,6 @@ hydra~=2.5
 urdfpy~=0.0.22
 gdown
 einops
-
 #torch~=2.0.0+cu118
 networkx~=2.2
 cholespy~=2.0.0

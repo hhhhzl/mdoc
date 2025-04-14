@@ -103,7 +103,7 @@ class MPD(SingleAgentPlanner):
         print(f'Algorithm -- {planner_alg}')
         run_prior_only = False
         run_prior_then_guidance = False
-        if planner_alg == 'mmd':
+        if planner_alg == 'mdoc':
             pass
         elif planner_alg == 'diffusion_prior_then_guide':
             run_prior_then_guidance = True

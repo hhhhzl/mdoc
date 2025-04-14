@@ -15,11 +15,11 @@ with open(path.join(here, 'requirements.txt'), encoding='utf-8') as f:
         requires_list.append(str(line))
 
 
-setup(name='mmd',
+setup(name='mdoc',
       version=__version__,
-      description='Multi-Robot Motion Planning with Diffusion Models',
-      author='Yorai Shaoul',
-      author_email='yorai@cmu.edu',
+      description='',
+      author='',
+      author_email='',
       packages=find_packages(where=''),
       install_requires=requires_list,
       )

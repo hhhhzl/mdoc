@@ -88,7 +88,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # Arguments for the high/low level planner.
     # ============================
     low_level_planner_model_args = {
-        'planner_alg': 'mmd',
+        'planner_alg': 'mdoc',
         'use_guide_on_extra_objects_only': params.use_guide_on_extra_objects_only,
         'n_samples': params.n_samples,
         'n_local_inference_noising_steps': params.n_local_inference_noising_steps,
