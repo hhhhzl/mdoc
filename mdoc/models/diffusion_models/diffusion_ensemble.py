@@ -31,7 +31,7 @@ import torch
 from typing import *
 # Project includes.
 from .diffusion_model_base import *
-from mmd.config import MMDParams as params
+from mdoc.config import MMDParams as params
 
 
 class DiffusionsEnsemble(nn.Module):
