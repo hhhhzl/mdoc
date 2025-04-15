@@ -5,10 +5,10 @@ import os
 import torch
 
 from experiment_launcher import single_experiment_yaml, run_experiment
-from mmd import trainer
-from mmd.models import UNET_DIM_MULTS, TemporalUnet
-from mmd.trainer import get_dataset, get_model, get_loss, get_summary
-from mmd.trainer.trainer import get_num_epochs
+from mdoc import trainer
+from mdoc.models import UNET_DIM_MULTS, TemporalUnet
+from mdoc.trainer import get_dataset, get_model, get_loss, get_summary
+from mdoc.trainer.trainer import get_num_epochs
 from torch_robotics.torch_utils.seed import fix_random_seed
 from torch_robotics.torch_utils.torch_utils import get_torch_device
 
