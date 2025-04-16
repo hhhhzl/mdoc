@@ -43,11 +43,11 @@ import concurrent.futures
 # Project imports.
 from experiment_launcher import single_experiment_yaml, run_experiment
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint
-from mmd.models import TemporalUnet, UNET_DIM_MULTS
-from mmd.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
-from mmd.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
-from mmd.trainer import get_dataset, get_model
-from mmd.utils.loading import load_params_from_yaml
+from mdoc.models import TemporalUnet, UNET_DIM_MULTS
+from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
+from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
+from mdoc.trainer import get_dataset, get_model
+from mdoc.utils.loading import load_params_from_yaml
 from torch_robotics.robots import *
 from torch_robotics.torch_utils.seed import fix_random_seed
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
@@ -57,16 +57,16 @@ from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_l
 from torch_robotics.trajectory.utils import interpolate_traj_via_points
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
 from torch_robotics.robots.robot_planar_disk import RobotPlanarDisk
-from mmd.planners.multi_agent import CBS, PrioritizedPlanning
-from mmd.planners.single_agent import MPD, MPDEnsemble
-from mmd.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
-from mmd.common.conflicts import VertexConflict, PointConflict, EdgeConflict
-from mmd.common.trajectory_utils import smooth_trajs, densify_trajs
-from mmd.common import compute_collision_intensity, is_multi_agent_start_goal_states_valid, global_pad_paths, \
+from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
+from mdoc.planners.single_agent import MPD, MPDEnsemble
+from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
+from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
+from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
+from mdoc.common import compute_collision_intensity, is_multi_agent_start_goal_states_valid, global_pad_paths, \
     get_start_goal_pos_circle, get_state_pos_column, get_start_goal_pos_boundary, get_start_goal_pos_random_in_env
-from mmd.common.pretty_print import *
-from mmd.config.mmd_params import MMDParams as params
-from mmd.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
+from mdoc.common.pretty_print import *
+from mdoc.config.mmd_params import MMDParams as params
+from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
     get_result_dir_from_trial_config, TrialSuccessStatus
 from torch_robotics.environments import *
 

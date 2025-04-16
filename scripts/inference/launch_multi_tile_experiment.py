@@ -40,9 +40,9 @@ import concurrent.futures
 import multiprocessing as mp
 
 # Project includes.
-from mmd.common.experiments import MultiAgentPlanningExperimentConfig
-from mmd.common.experiments.experiment_utils import *
-from mmd.config.mmd_params import MMDParams as params
+from mdoc.common.experiments import MultiAgentPlanningExperimentConfig
+from mdoc.common.experiments.experiment_utils import *
+from mdoc.config.mmd_params import MMDParams as params
 from inference_multi_agent import run_multi_agent_trial
 from launch_multi_agent_experiment import run_multi_agent_experiment
 

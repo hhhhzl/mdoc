@@ -10,8 +10,7 @@ from einops._torch_specific import allow_ops_in_compiled_graph  # requires einop
 from typing import Tuple, List
 from experiment_launcher import single_experiment_yaml, run_experiment
 
-from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint, \
-    CostMaxVelocity
+from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint, CostMaxVelocity
 from mdoc.models import TemporalUnet, UNET_DIM_MULTS
 from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
 from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn

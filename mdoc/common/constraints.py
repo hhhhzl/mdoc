@@ -28,7 +28,7 @@ from typing import Tuple, List
 import torch
 
 # Project includes.
-from mmd.config import MMDParams as params
+from mdoc.config import MMDParams as params
 
 
 class Constraint(ABC):

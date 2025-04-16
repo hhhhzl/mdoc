@@ -25,7 +25,7 @@ SOFTWARE.
 import torch
 from scipy.signal import savgol_filter
 # Project imports.
-from mmd.config.mmd_params import MMDParams as params
+from mdoc.config.mmd_params import MMDParams as params
 
 
 def smooth_trajs(trajs, window_size=10, poly_order=2):

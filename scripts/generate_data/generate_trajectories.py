@@ -24,7 +24,7 @@ from mp_baselines.planners.identity_planner import IdentityPlanner
 from torch_robotics import environments, robots
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
-from mmd.common.trajectory_utils import densify_trajs
+from mdoc.common.trajectory_utils import densify_trajs
 
 
 def generate_collision_free_trajectories(

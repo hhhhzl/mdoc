@@ -3,7 +3,7 @@ From https://github.com/jacarvalho/mpd-public
 """
 from torch import nn
 
-from mmd.models.layers.layers import MLP
+from mdoc.models.layers.layers import MLP
 
 
 class MLPModel(nn.Module):

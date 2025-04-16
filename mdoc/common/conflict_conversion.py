@@ -24,9 +24,9 @@ SOFTWARE.
 
 from typing import List, Tuple, Dict, Type
 # MMD imports.
-from mmd.common.conflicts import Conflict, VertexConflict, EdgeConflict, PointConflict
-from mmd.common.constraints import MultiPointConstraint, EdgeConstraint, VertexConstraint, Constraint
-from mmd.config.mmd_params import MMDParams as params
+from mdoc.common.conflicts import Conflict, VertexConflict, EdgeConflict, PointConflict
+from mdoc.common.constraints import MultiPointConstraint, EdgeConstraint, VertexConstraint, Constraint
+from mdoc.config.mmd_params import MMDParams as params
 
 
 def convert_conflicts_to_constraints(conflict: Conflict,

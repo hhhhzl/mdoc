@@ -7,8 +7,8 @@ import numpy as np
 import torch
 import wandb
 
-from mmd.models import build_context
-from mmd.summaries.summary_base import SummaryBase
+from mdoc.models import build_context
+from mdoc.summaries.summary_base import SummaryBase
 
 
 class SummaryTrajectoryGeneration(SummaryBase):

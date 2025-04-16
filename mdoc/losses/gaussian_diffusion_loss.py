@@ -3,7 +3,7 @@ From https://github.com/jacarvalho/mpd-public
 """
 import torch
 
-from mmd.models import build_context
+from mdoc.models import build_context
 
 
 class GaussianDiffusionLoss:
