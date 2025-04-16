@@ -10,7 +10,7 @@ import os.path
 import torch
 import yaml
 
-from mmd.utils.loading import load_params_from_yaml
+from mdoc.utils.loading import load_params_from_yaml
 from torch_robotics import environments, robots
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.torch_utils.torch_utils import DEFAULT_TENSOR_ARGS, to_torch

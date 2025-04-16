@@ -6,8 +6,8 @@ import os
 import torch
 from torch.utils.data import DataLoader, random_split
 
-from mmd import models, losses, datasets, summaries
-from mmd.utils import model_loader, pretrain_helper
+from mdoc import models, losses, datasets, summaries
+from mdoc.utils import model_loader, pretrain_helper
 from torch_robotics.torch_utils.torch_utils import freeze_torch_model_params
 
 

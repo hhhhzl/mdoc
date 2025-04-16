@@ -5,10 +5,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from mmd.models.layers.layers import GaussianFourierProjection, Downsample1d, Conv1dBlock, Upsample1d, \
+from mdoc.models.layers.layers import GaussianFourierProjection, Downsample1d, Conv1dBlock, Upsample1d, \
     ResidualTemporalBlock, TimeEncoder, MLP
-from mmd.models.layers.layers_attention import SpatialTransformer
-from mmd.models.helpers.marginal_prob import reshape_std
+from mdoc.models.layers.layers_attention import SpatialTransformer
+from mdoc.models.helpers.marginal_prob import reshape_std
 from .score_model_base import ScoreModelBase
 
 

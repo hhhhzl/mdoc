@@ -9,9 +9,9 @@ from abc import ABC
 from einops import rearrange
 from torch.nn import DataParallel
 
-from mmd.models.layers.layers import GaussianFourierProjection, Downsample1d, Conv1dBlock, Upsample1d, \
+from mdoc.models.layers.layers import GaussianFourierProjection, Downsample1d, Conv1dBlock, Upsample1d, \
     ResidualTemporalBlock, TimeEncoder, MLP, group_norm_n_groups, LinearAttention, PreNorm, Residual, TemporalBlockMLP
-from mmd.models.layers.layers_attention import SpatialTransformer
+from mdoc.models.layers.layers_attention import SpatialTransformer
 
 
 UNET_DIM_MULTS = {

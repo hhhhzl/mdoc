@@ -27,8 +27,8 @@ import numpy as np
 import torch
 
 # Project imports.
-from mmd.config.mmd_params import MMDParams as params
-from mmd.common.multi_agent_utils import *
+from mdoc.config.mmd_params import MMDParams as params
+from mdoc.common.multi_agent_utils import *
 from torch_robotics.environments import *
 from torch_robotics.environments.env_highways_2d import EnvHighways2D
 

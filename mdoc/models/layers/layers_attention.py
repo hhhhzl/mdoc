@@ -9,7 +9,7 @@ from einops import rearrange, repeat
 from inspect import isfunction
 from torch import einsum
 
-from mmd.models.layers.layers import group_norm_n_groups
+from mdoc.models.layers.layers import group_norm_n_groups
 
 
 def exists(val):

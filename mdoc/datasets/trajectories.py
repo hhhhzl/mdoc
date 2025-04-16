@@ -9,10 +9,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from mmd.datasets.normalization import DatasetNormalizer
-from mmd.utils.loading import load_params_from_yaml
+from mdoc.datasets.normalization import DatasetNormalizer
+from mdoc.utils.loading import load_params_from_yaml
 from torch_robotics import environments, robots
-from torch_robotics.environments.env_base import EnvBase
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
 

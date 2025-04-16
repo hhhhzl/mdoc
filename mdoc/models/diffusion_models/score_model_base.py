@@ -3,7 +3,7 @@ From https://github.com/jacarvalho/mpd-public
 """
 import torch.nn as nn
 from abc import ABC
-from mmd.models.helpers.marginal_prob import reshape_std
+from mdoc.models.helpers.marginal_prob import reshape_std
 
 
 class ScoreModelBase(nn.Module, ABC):
