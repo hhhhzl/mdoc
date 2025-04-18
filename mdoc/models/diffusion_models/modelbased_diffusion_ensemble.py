@@ -11,6 +11,7 @@ from mdoc.models.diffusion_models.sample_functions import (
     apply_cross_conditioning,
 )
 from .diffusion_model_base import make_timesteps
+import einops
 
 
 class ModelBasedDiffusionEnsemble(nn.Module):
@@ -273,9 +274,15 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         results = {}
         chains = {}
 
-        contexts = contexts or {}
-        hard_conds = hard_conds or {}
-        cross_conds = cross_conds or {}
+        contexts = deepcopy(contexts)
+        hard_conds = deepcopy(hard_conds)
+        cross_conds = deepcopy(cross_conds)
+        if contexts is None:
+            contexts = [None] * len(self.models)
+        for m, c_dict in hard_conds.items():
+            for k, v in c_dict.items():
+                # k is the key of the condition, usually state index in the trajectory
+                hard_conds[m][k] = einops.repeat(v, 'd -> b d', b=n_samples)
 
         # Noise the given seed trajectory for n_noising_steps.
         noised_trajectories = {}
