@@ -49,7 +49,6 @@ class DiffusionsEnsemble(nn.Module):
         assert len(set([model.predict_epsilon for model in models.values()])) == 1
 
         self.transforms = transforms
-
         self.context_model = context_model
 
     @torch.no_grad()
@@ -267,7 +266,8 @@ class DiffusionsEnsemble(nn.Module):
 
         return {k: v[-1] for k, v in chains.items()}
 
-    def run_local_inference(self, seed_trajectory_b: torch.Tensor,
+    def run_local_inference(self,
+                            seed_trajectory_b: torch.Tensor,
                             n_noising_steps: int,  # If None, then pass that and later on a true noise sample will be used.
                             n_denoising_steps: int,  # Must be a real value that can be used for denoising.
                             contexts: List[dict] = None,

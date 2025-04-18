@@ -1,78 +1,33 @@
 """
 MIT License
-
-Copyright (c) 2024 Yorai Shaoul
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 """
 # Standard imports.
-# from torch_robotics.isaac_gym_envs.motion_planning_envs import PandaMotionPlanningIsaacGymEnv, MotionPlanningController
 
 import os
-import pickle
 from datetime import datetime
 import time
-from math import ceil
-from pathlib import Path
-
-import einops
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
-from typing import Tuple, List
-import concurrent.futures
 
 # Project imports.
-from experiment_launcher import single_experiment_yaml, run_experiment
-from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint
-from mdoc.models import TemporalUnet, UNET_DIM_MULTS
-from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
-from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
-from mdoc.trainer import get_dataset, get_model
-from mdoc.utils.loading import load_params_from_yaml
 from torch_robotics.robots import *
-from torch_robotics.torch_utils.seed import fix_random_seed
-from torch_robotics.torch_utils.torch_timer import TimerCUDA
 from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torch_model_params
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints, \
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
-from torch_robotics.trajectory.utils import interpolate_traj_via_points
-from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
-from torch_robotics.robots.robot_planar_disk import RobotPlanarDisk
+from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble
+from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOC
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
-from mdoc.common import compute_collision_intensity, is_multi_agent_start_goal_states_valid, global_pad_paths, \
-    get_start_goal_pos_circle, get_state_pos_column, get_start_goal_pos_boundary, get_start_goal_pos_random_in_env
+from mdoc.common import get_start_goal_pos_circle
 from mdoc.common.pretty_print import *
 from mdoc.config.mmd_params import MMDParams as params
 from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
     get_result_dir_from_trial_config, TrialSuccessStatus
-from torch_robotics.environments import *
+
 
 allow_ops_in_compiled_graph()
-
-TRAINED_MODELS_DIR = '../../data_trained_models/'
 device = 'cuda'
 device = get_torch_device(device)
 tensor_args = {'device': device, 'dtype': torch.float32}
@@ -88,7 +43,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # Arguments for the high/low level planner.
     # ============================
     low_level_planner_model_args = {
-        'planner_alg': 'mmd',
+        'planner_alg': 'mdoc',
         'use_guide_on_extra_objects_only': params.use_guide_on_extra_objects_only,
         'n_samples': params.n_samples,
         'n_local_inference_noising_steps': params.n_local_inference_noising_steps,
@@ -106,7 +61,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'debug': params.debug,
         'seed': params.seed,
         'results_dir': params.results_dir,
-        'trained_models_dir': TRAINED_MODELS_DIR,
+        'trained_models_dir': None,
     }
     high_level_planner_model_args = {
         'is_xcbs': True if test_config.multi_agent_planner_class in ["XECBS", "XCBS"] else False,
@@ -155,6 +110,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         low_level_planner_class = MPD
     elif test_config.single_agent_planner_class == "MPDEnsemble":
         low_level_planner_class = MPDEnsemble
+    elif test_config.single_agent_planner_class == "MDOC":
+        low_level_planner_class = MDOC
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -180,7 +137,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     low_level_planner_model_args['model_ids'] = reference_agent_model_ids  # This matters.
     low_level_planner_model_args['transforms'] = reference_agent_transforms  # This matters.
 
-    if test_config.single_agent_planner_class == "MPD":
+    if test_config.single_agent_planner_class in ["MPD", "MDOC"]:
         low_level_planner_model_args['model_id'] = reference_agent_model_ids[0]
 
     reference_low_level_planner = low_level_planner_class(**low_level_planner_model_args)
@@ -190,7 +147,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # ============================
     # Run trial.
     # ============================
-    exp_name = f'mmd_single_trial'
+    exp_name = f"{low_level_planner_model_args['planner_alg']}_single_trial"
 
     # Transform starts and goals to the global frame. Right now they are in the local tile frames.
     start_l = [start_l[i] + global_model_transforms[agent_skeleton_l[i][0][0]][agent_skeleton_l[i][0][1]]
@@ -395,17 +352,6 @@ if __name__ == '__main__':
         torch.random.manual_seed(10)
         test_config_single_tile.start_state_pos_l, test_config_single_tile.goal_state_pos_l = \
         get_start_goal_pos_circle(test_config_single_tile.num_agents, 0.8)
-        # Another option is to get random starts and goals.
-        # get_start_goal_pos_random_in_env(test_config_single_tile.num_agents,
-        #                                  EnvDropRegion2D,
-        #                                  tensor_args,
-        #                                  margin=0.2,
-        #                                  obstacle_margin=0.11)
-        # A third option is to get starts and goals in a "boundary" formation.
-        # get_start_goal_pos_boundary(test_config_single_tile.num_agents, 0.85)
-        # And a final option is to hard-code starts and goals.
-        # (torch.tensor([[-0.8, 0], [0.8, -0]], **tensor_args),
-        #  torch.tensor([[0.8, -0], [-0.8, 0]], **tensor_args))
         print("Starts:", test_config_single_tile.start_state_pos_l)
         print("Goals:", test_config_single_tile.goal_state_pos_l)
 
