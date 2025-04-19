@@ -1,13 +1,13 @@
-## Model-Based Diffusion Online Control in Multi-Robot Motion Planning
+# Model-Based Diffusion Online Control in Multi-Robot Motion Planning
 
 ---
 
-### Introduction
+## Introduction
 
 Model-Based Diffusion Online Control in Multi-Robot Motion Planning
 
 
-### Installation
+## Installation
 
 #### Requirements: 
   - Python >= 3.10
@@ -20,9 +20,9 @@ Model-Based Diffusion Online Control in Multi-Robot Motion Planning
 cd scripts/bash
 ./setup.sh
 ```
-### Planning with MDOC
+## Planning with MDOC
 
-### Planning with MMD
+## Planning with MMD
 mmd produces data-driven multi-robot trajectories in a single map or in a collection of "tiled" local maps. Let's take a look at how to use it.
 #### Download Trajectory Data and Pre-trained Diffusion Model
 
@@ -36,10 +36,10 @@ cd scripts/bash
 ./run_inference.sh --method=mmd
 ```
 
-### Reproduce Our Experiments
+## Reproduce Our Experiments
 
 
-### Citation
+## Citation
 If you use our work or code in your research, please cite our paper:
 ```
 @inproceedings{
@@ -52,7 +52,7 @@ url={https://openreview.net/forum?id=AUCYptvAf3}
 }
 ```
 
-### Credits
+## Credits
 Parts of this work and software were taken and/or inspired from:
 
 
