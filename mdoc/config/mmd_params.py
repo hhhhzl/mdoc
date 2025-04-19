@@ -43,7 +43,7 @@ class MMDParams:
     weight_grad_cost_soft_constraints = 2e-2
     factor_num_interpolated_points_for_collision = 1.5
     trajectory_duration = 5.0
-    device = 'cuda'
+    device = 'mps'
     debug = True
     seed = 18
     results_dir = 'logs'

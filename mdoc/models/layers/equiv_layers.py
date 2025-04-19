@@ -4,7 +4,7 @@ From https://github.com/jacarvalho/mpd-public
 import torch
 import torch.nn as nn
 import einops
-
+from torch_robotics.torch_utils.torch_utils import get_torch_device
 EPS = 1e-6
 
 
@@ -92,7 +92,7 @@ def get_graph_mean(x, k=20, idx=None):
     x = x.reshape(batch_size, -1, num_points).contiguous()
     if idx is None:
         idx = knn(x, k=k)  # (batch_size, num_points, k)
-    device = torch.device('cuda')
+    device = get_torch_device()
 
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
 
@@ -120,7 +120,7 @@ def get_shell_mean_cross(x, k=10, nk=4, idx_all=None):
     x = x.reshape(batch_size, -1, num_points).contiguous()
     if idx_all is None:
         idx_all = knn(x, k=nk * k)  # (batch_size, num_points, k)
-    device = torch.device('cuda')
+    device = get_torch_device()
 
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points
 

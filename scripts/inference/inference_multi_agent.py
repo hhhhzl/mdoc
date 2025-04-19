@@ -73,8 +73,8 @@ from torch_robotics.environments import *
 allow_ops_in_compiled_graph()
 
 TRAINED_MODELS_DIR = '../../data_trained_models/'
-device = 'cuda'
-device = get_torch_device(device)
+device = get_torch_device()
+print(f">>>>>>>>> Using {device} <<<<<<<<<<<<<<<")
 tensor_args = {'device': device, 'dtype': torch.float32}
 
 

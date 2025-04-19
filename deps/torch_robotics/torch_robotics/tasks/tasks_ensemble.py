@@ -4,7 +4,7 @@ from .tasks import *
 from torch_robotics.environments import *
 from typing import Dict
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints
-from mmd.common.pretty_print import *
+from mdoc.common.pretty_print import *
 
 class TaskEnsemble(Task):
     def __init__(self,

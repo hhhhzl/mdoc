@@ -11,16 +11,16 @@ from typing import Tuple, List
 from enum import Enum
 import concurrent.futures
 
-from mmd.common.experiments import TrialSuccessStatus
+from mdoc.common.experiments import TrialSuccessStatus
 # Project imports.
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer, create_fig_and_axes
-from mmd.common.conflicts import VertexConflict, Conflict
-from mmd.common.constraints import MultiPointConstraint
-from mmd.common.experiences import PathExperience, PathBatchExperience
-from mmd.common.pretty_print import *
-from mmd.common import densify_trajs, smooth_trajs, is_multi_agent_start_goal_states_valid, global_pad_paths
-from mmd.config import MMDParams as params
-from mmd.planners.multi_agent.cbs import SearchState  # Holding multi-agent paths and constraints information.
+from mdoc.common.conflicts import VertexConflict, Conflict
+from mdoc.common.constraints import MultiPointConstraint
+from mdoc.common.experiences import PathExperience, PathBatchExperience
+from mdoc.common.pretty_print import *
+from mdoc.common import densify_trajs, smooth_trajs, is_multi_agent_start_goal_states_valid, global_pad_paths
+from mdoc.config import MMDParams as params
+from mdoc.planners.multi_agent.cbs import SearchState  # Holding multi-agent paths and constraints information.
 
 
 class PrioritizedPlanning:
