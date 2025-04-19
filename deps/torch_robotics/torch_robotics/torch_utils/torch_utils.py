@@ -6,17 +6,23 @@ import numpy as np
 import torch
 
 
-def get_torch_device(device='cuda'):
-    if 'cuda' in device and torch.cuda.is_available():
+def get_torch_device(device=None):
+    if device:
+        if device == "cuda" and torch.cuda.is_available():
+            return torch.device(device)
+        elif device == "mps" and torch.backends.mps.is_available():
+            return torch.device(device)
+
+    if torch.cuda.is_available():
         device = 'cuda'
-    elif 'mps' in device:
+    elif torch.backends.mps.is_available():
         device = 'mps'
     else:
         device = 'cpu'
     return torch.device(device)
 
 
-DEFAULT_TENSOR_ARGS = {'device': get_torch_device('cuda'), 'dtype': torch.float32}
+DEFAULT_TENSOR_ARGS = {'device': get_torch_device("cuda"), 'dtype': torch.float32}
 
 def dict_to_device(ob, device):
     if isinstance(ob, collections.Mapping):

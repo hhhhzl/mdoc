@@ -26,6 +26,9 @@ import torch
 from scipy.signal import savgol_filter
 # Project imports.
 from mdoc.config.mmd_params import MMDParams as params
+from torch_robotics.torch_utils.torch_utils import get_torch_device
+
+device = get_torch_device()
 
 
 def smooth_trajs(trajs, window_size=10, poly_order=2):
@@ -46,7 +49,7 @@ def smooth_trajs(trajs, window_size=10, poly_order=2):
             smoothed_trajs.append(torch.tensor(traj).to(**params.tensor_args))
             continue
         smoothed_traj = savgol_filter(traj, window_size_traj, poly_order, axis=0)
-        smoothed_traj = torch.tensor(smoothed_traj).to('cuda')
+        smoothed_traj = torch.tensor(smoothed_traj).to(device)
         smoothed_trajs.append(smoothed_traj)
     return smoothed_trajs
 

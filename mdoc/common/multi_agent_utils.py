@@ -26,6 +26,8 @@ import torch
 from typing import List
 from copy import deepcopy
 import numpy as np
+from torch_robotics.torch_utils.torch_utils import get_torch_device
+device = get_torch_device()
 # Project imports.
 
 
@@ -147,10 +149,10 @@ def get_start_goal_pos_circle(num_agents: int, radius=0.8):
     # These are all in the local tile frame.
     start_l = [torch.tensor([radius * np.cos(2 * torch.pi * i / num_agents),
                              radius * np.sin(2 * torch.pi * i / num_agents)],
-                            dtype=torch.float32, device='cuda') for i in range(num_agents)]
+                            dtype=torch.float32, device=device) for i in range(num_agents)]
     goal_l = [torch.tensor([radius * np.cos(2 * torch.pi * i / num_agents + torch.pi),
                             radius * np.sin(2 * torch.pi * i / num_agents + torch.pi)],
-                           dtype=torch.float32, device='cuda') for i in range(num_agents)]
+                           dtype=torch.float32, device=device) for i in range(num_agents)]
     return start_l, goal_l
 
 
@@ -158,7 +160,7 @@ def get_start_goal_pos_boundary(num_agents: int, dist=0.87):
     # These are all in the local tile frame.
     start_l = [torch.tensor([0.8 * np.cos(2 * torch.pi * i / num_agents),
                              0.8 * np.sin(2 * torch.pi * i / num_agents)],
-                            dtype=torch.float32, device='cuda') for i in range(num_agents)]
+                            dtype=torch.float32, device=device) for i in range(num_agents)]
 
     # Snap the abs max x or y value to either -1 or 1.
     for i in range(num_agents):
@@ -169,14 +171,14 @@ def get_start_goal_pos_boundary(num_agents: int, dist=0.87):
 
     goal_l = [torch.tensor([start_l[i][0] if abs(start_l[i][0]) < abs(start_l[i][1]) else -start_l[i][0],
                             start_l[i][1] if abs(start_l[i][1]) < abs(start_l[i][0]) else -start_l[i][1]],
-                           dtype=torch.float32, device='cuda') for i in range(num_agents)]
+                           dtype=torch.float32, device=device) for i in range(num_agents)]
     return start_l, goal_l
 
 
 def get_state_pos_column(num_agents: int, x_pos: float):
     # These are all in the local tile frame.
     state_l = [torch.tensor([x_pos, 0.8 * (1 - 2 * i / num_agents)],
-                            dtype=torch.float32, device='cuda') for i in range(num_agents)]
+                            dtype=torch.float32, device=device) for i in range(num_agents)]
     return state_l
 
 

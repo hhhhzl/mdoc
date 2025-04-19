@@ -29,12 +29,12 @@ import torch
 import matplotlib.collections as mcoll
 import matplotlib.pyplot as plt
 
-from mmd.common.constraints import *
-from mmd.common.trajectory_utils import *
+from mdoc.common.constraints import *
+from mdoc.common.trajectory_utils import *
 # Project imports.
 from torch_robotics.robots.robot_base import RobotBase
 from torch_robotics.torch_utils.torch_utils import to_numpy, tensor_linspace_v1, to_torch
-from mmd.config import MMDParams as params
+from mdoc.config import MMDParams as params
 
 
 class RobotPlanarDisk(RobotBase):

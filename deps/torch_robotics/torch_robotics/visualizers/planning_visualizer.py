@@ -8,7 +8,7 @@ import matplotlib.collections as mcoll
 
 # Project includes.
 from torch_robotics.torch_utils.torch_utils import to_numpy
-from mmd.plotting.base import remove_borders, remove_axes_labels_ticks
+from mdoc.plotting.base import remove_borders, remove_axes_labels_ticks
 
 def create_fig_and_axes(dim=2):
     fig = plt.figure(layout='tight')

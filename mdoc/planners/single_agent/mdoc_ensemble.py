@@ -18,8 +18,7 @@ from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelo
 from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
 from mdoc.trainer import get_dataset, get_model
 from mdoc.utils.loading import load_params_from_yaml
-from mdoc.planners.single_agent.common import PlannerOutput
-from mdoc.planners.single_agent.single_agent_planner_base import SingleAgentPlanner
+from mdoc.planners.common import PlannerOutput, SingleAgentPlanner
 from mdoc.models.diffusion_models.diffusion_ensemble import DiffusionsEnsemble
 from mdoc.common.experiences import PathExperience, PathBatchExperience
 from mdoc.common.pretty_print import *
@@ -34,7 +33,7 @@ from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 TRAINED_MODELS_DIR = '../../data_trained_models/'
 
 
-class MPDEnsemble(SingleAgentPlanner):
+class MDOCEnsemble(SingleAgentPlanner):
     """
     A class that allows repeated calls to the same model with different inputs.
     This class keeps track of constraints and feeds them to the model only when needed.

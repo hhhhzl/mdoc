@@ -1,7 +1,6 @@
 from setuptools import setup, find_packages
 from codecs import open
 from os import path
-from mdoc import __version__
 
 
 ext_modules = []
@@ -15,10 +14,10 @@ with open(path.join(here, 'requirements.txt'), encoding='utf-8') as f:
 
 setup(
     name='mdoc',
-    version=__version__,
+    version="0.0.1",
     description='',
     author='hector',
     author_email='hectorh@cmu.edu',
-    packages=find_packages(where=''),
+    packages=find_packages(),
     install_requires=requires_list,
 )

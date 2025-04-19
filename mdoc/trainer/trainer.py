@@ -13,7 +13,7 @@ from collections import defaultdict
 from tqdm.autonotebook import tqdm
 
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
-from torch_robotics.torch_utils.torch_utils import dict_to_device, DEFAULT_TENSOR_ARGS, to_numpy
+from torch_robotics.torch_utils.torch_utils import dict_to_device, DEFAULT_TENSOR_ARGS, to_numpy, get_torch_device
 
 
 def get_num_epochs(num_train_steps, batch_size, dataset_len):
@@ -182,7 +182,7 @@ def train(model=None, train_dataloader=None, epochs=None, lr=None, steps_til_sum
                     train_batch_dict = dict_to_device(train_batch_dict, tensor_args['device'])
 
                     # Compute losses
-                    with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_amp):
+                    with torch.autocast(device_type=get_torch_device(), dtype=torch.float16, enabled=use_amp):
                         train_losses, train_losses_info = loss_fn(model, train_batch_dict, train_subset.dataset)
 
                     train_loss_batch = 0.

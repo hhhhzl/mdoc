@@ -9,7 +9,7 @@ from torch_robotics.environments.primitives import ObjectField, MultiSphereField
 from torch_robotics.environments.utils import create_grid_spheres
 from torch_robotics.torch_utils.torch_utils import DEFAULT_TENSOR_ARGS
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
-from mmd.config.mmd_params import MMDParams as params
+from mdoc.config.mmd_params import MMDParams as params
 
 
 class EnvEmpty2D(EnvBase):

@@ -5,6 +5,7 @@ import torch
 from matplotlib import pyplot as plt
 
 from torch_robotics.torch_kinematics_tree.geometrics.utils import SE3_distance
+from torch_robotics.torch_utils.torch_utils import get_torch_device
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 import torch.nn.functional as Functional
 
@@ -68,7 +69,12 @@ def interpolate_points_v1(points, num_interpolated_points):
     """
     Interpolates points to have num_interpolated_points between each pair of points.
     """
-    points = Functional.interpolate(points.transpose(-2, -1), size=num_interpolated_points, mode='linear', align_corners=True).transpose(-2, -1)
+    # linear does not support for mps
+    device = get_torch_device()
+    if device != 'cuda':
+        points = points.cpu()
+
+    points = Functional.interpolate(points.transpose(-2, -1), size=num_interpolated_points, mode='linear', align_corners=True).transpose(-2, -1).to(device)
     return points
 
 

@@ -2,7 +2,7 @@
 
 set -e
 
-METHOD="mdoc"
+METHOD="mmd"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
@@ -17,10 +17,10 @@ cd ../../
 cd scripts/inference
 # Run Inference
 if [[ "$METHOD" == "mmd" ]]; then
-    echo "Running MMD..."
+    echo "---------------Running MMD---------------"
     python inference_multi_agent.py --method=$METHOD
 else
-    echo "Running MDOC..."
+    echo "---------------Running MDOC---------------"
     python inference_multi_agent.py --method=$METHOD
 fi
 
