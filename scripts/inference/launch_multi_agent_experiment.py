@@ -8,6 +8,124 @@ from mdoc.common.experiments.experiment_utils import *
 from inference_multi_agent import run_multi_agent_trial
 import time
 from datetime import datetime
+import argparse
+from enum import Enum
+
+
+class EnvironmentType(Enum):
+    # Single tile.
+    EMPTY_DISK_CIRCLE = "EnvEmpty2DRobotPlanarDiskCircle"
+    EMPTY_DISK_BOUNDARY = "EnvEmpty2DRobotPlanarDiskBoundary"
+    CONVEYOR_DISK_BOUNDARY = "EnvConveyor2DRobotPlanarDiskBoundary"
+    HIGHWAYS_DISK_SMALL_CIRCLE = "EnvHighways2DRobotPlanarDiskSmallCircle"
+    DROP_REGION_DISK_BOUNDARY = "EnvDropRegion2DRobotPlanarDiskBoundary"
+    CONVEYOR_DISK_RANDOM = "EnvConveyor2DRobotPlanarDiskRandom"
+    EMPTY_DISK_RANDOM = "EnvEmpty2DRobotPlanarDiskRandom"
+    HIGHWAYS_DISK_RANDOM = "EnvHighways2DRobotPlanarDiskRandom"
+    # Multiple tiles.
+    TEST_2X2_RANDOM = "EnvTestTwoByTwoRobotPlanarDiskRandom"
+    TEST_3X3_RANDOM = "EnvTestThreeByThreeRobotPlanarDiskRandom"
+    TEST_4X4_RANDOM = "EnvTestFourByFourRobotPlanarDiskRandom"
+
+    @classmethod
+    def choices(cls):
+        return [e.value for e in cls]
+
+    @classmethod
+    def from_string(cls, s):
+        for e in cls:
+            if e.value == s:
+                return e
+        raise ValueError(f"Invalid environment name: {s}. Valid options: {cls.choices()}")
+
+
+class MultiAgentPlannerType(Enum):
+    XECBS = "XECBS"
+    ECBS = "ECBS"
+    PP = "PP"
+    XCBS = "XCBS"
+    CBS = "CBS"
+
+    @classmethod
+    def choices(cls):
+        return [e.value for e in cls]
+
+
+class LowerPlannerMethodType(Enum):
+    MMD = 'MPDEnsemble'
+
+    @classmethod
+    def choices(cls):
+        return [e.value for e in cls]
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Multi-agent planning experiment configuration")
+
+    # Number of agents
+    parser.add_argument(
+        '--n',
+        nargs='+',
+        type=int,
+        default=[2, 3, 6],
+        help='List of number of agents to test'
+    )
+
+    # Environment selection
+    parser.add_argument(
+        '--e',
+        type=str,
+        default=EnvironmentType.HIGHWAYS_DISK_RANDOM.value,
+        choices=EnvironmentType.choices(),
+        help='Environment/instance to use for the experiment'
+    )
+
+    # Timing
+    parser.add_argument(
+        '--st',
+        type=float,
+        default=0,
+        help='Stagger start time between agents'
+    )
+
+    # Planner configuration (using Enum choices)
+    parser.add_argument(
+        '--hp',
+        nargs='+',
+        default=[MultiAgentPlannerType.XECBS.value],
+        choices=MultiAgentPlannerType.choices(),
+        help='List of multi-agent planners to test'
+    )
+
+    parser.add_argument(
+        '--lp',
+        nargs='+',
+        default=[LowerPlannerMethodType.MMD.value],
+        choices=LowerPlannerMethodType.choices(),
+        help='Single agent planner to use'
+    )
+
+    # Experiment parameters
+    parser.add_argument(
+        '--rl',
+        type=int,
+        default=60 * 3,
+        help='Runtime limit in seconds'
+    )
+    parser.add_argument(
+        '--nt',
+        type=int,
+        default=1,
+        help='Number of trials to run for each configuration'
+    )
+    parser.add_argument(
+        '--ra',
+        action='store_true',
+        default=True,
+        help='Whether to render animations'
+    )
+
+    return parser.parse_args()
 
 
 def run_multi_agent_experiment(experiment_config: MultiAgentPlanningExperimentConfig):
@@ -22,13 +140,12 @@ def run_multi_agent_experiment(experiment_config: MultiAgentPlanningExperimentCo
         print(single_trial_config)
         try:
             run_multi_agent_trial(single_trial_config)
-
             # Aggregate and save data on every step. This is not needed (can be done once at the end).
-            combine_and_save_results_for_experiment(experiment_config)
+            # combine_and_save_results_for_experiment(experiment_config)
         except Exception as e:
             print("Error in run_multi_agent_experiment: ", e)
             # Save to a file.
-            with open(f"error_{experiment_config.time_str}.txt", "a") as f:
+            with open(f"/results/error_{experiment_config.time_str}.txt", "a") as f:
                 f.write(str(e))
                 f.write("This is for single_trial_config: ")
                 f.write(str(single_trial_config))
@@ -42,36 +159,21 @@ def run_multi_agent_experiment(experiment_config: MultiAgentPlanningExperimentCo
 
 if __name__ == "__main__":
     # Instance names. These dictate the maps and start/goals.
+    args = parse_args()
+
     # Create an experiment config.
     experiment_config = MultiAgentPlanningExperimentConfig()
+
     # Set the experiment config.
-    experiment_config.num_agents_l = [2, 3, 6]
+    experiment_config.num_agents_l = args.n
 
-    # Single tile.
-    # experiment_config.instance_name = "EnvEmpty2DRobotPlanarDiskCircle"
-    # experiment_config.instance_name = "EnvEmpty2DRobotPlanarDiskBoundary"
-    # experiment_config.instance_name = "EnvConveyor2DRobotPlanarDiskBoundary"
-    # experiment_config.instance_name = "EnvHighways2DRobotPlanarDiskSmallCircle"
-    # experiment_config.instance_name = "EnvDropRegion2DRobotPlanarDiskBoundary"
-    # experiment_config.instance_name = "EnvConveyor2DRobotPlanarDiskRandom"
-    # experiment_config.instance_name = "EnvEmpty2DRobotPlanarDiskRandom"
-    experiment_config.instance_name = "EnvHighways2DRobotPlanarDiskRandom"
+    experiment_config.instance_name = EnvironmentType.from_string(args.e).value
+    experiment_config.stagger_start_time_dt = args.st
+    experiment_config.multi_agent_planner_class_l = args.hp  # , "ECBS", "PP", "XCBS", "CBS"]
+    experiment_config.single_agent_planner_class = args.lp[0]
+    experiment_config.runtime_limit = args.rl
+    experiment_config.num_trials_per_combination = args.nt
+    experiment_config.render_animation = args.ra
 
-    # Multiple tiles.
-    # experiment_config.instance_name = "EnvTestTwoByTwoRobotPlanarDiskRandom"
-    # experiment_config.instance_name = "EnvTestThreeByThreeRobotPlanarDiskRandom"
-    # experiment_config.instance_name = "EnvTestFourByFourRobotPlanarDiskRandom"
-
-    experiment_config.stagger_start_time_dt = 0
-    experiment_config.multi_agent_planner_class_l = ["XECBS"]  # , "ECBS", "PP", "XCBS", "CBS"]
-    experiment_config.single_agent_planner_class = "MPDEnsemble"
-    experiment_config.runtime_limit = 60 * 3
-    experiment_config.num_trials_per_combination = 1
-    experiment_config.render_animation = True
     # Run the experiment.
     run_multi_agent_experiment(experiment_config)
-
-    # Example for only combining results without running the experiment.
-    # experiment_config.time_str = "2024-09-08-13-55-05"
-    # # Get all the results.
-    # aggregated_results = combine_and_save_results_for_experiment(experiment_config)

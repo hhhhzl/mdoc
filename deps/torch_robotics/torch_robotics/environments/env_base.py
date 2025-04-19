@@ -11,7 +11,7 @@ from torch_robotics.environments.grid_map_sdf import GridMapSDF
 from torch_robotics.environments.occupancy_map import OccupancyMap
 from torch_robotics.environments.primitives import ObjectField, MultiSphereField, MultiBoxField
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
-from torch_robotics.torch_utils.torch_utils import to_numpy, DEFAULT_TENSOR_ARGS
+from torch_robotics.torch_utils.torch_utils import to_numpy, get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 
 
@@ -293,7 +293,7 @@ class EnvBase(ABC):
         return True
 
 if __name__ == '__main__':
-    tensor_args = DEFAULT_TENSOR_ARGS
+    tensor_args = get_default_tensor_args()
     spheres = MultiSphereField(torch.zeros(2, **tensor_args).view(1, -1),
                                torch.ones(1, **tensor_args).view(1, -1) * 0.3,
                                tensor_args=tensor_args)

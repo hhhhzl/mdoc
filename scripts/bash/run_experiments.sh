@@ -17,11 +17,11 @@ cd ../../
 cd scripts/inference
 # Run Inference
 if [[ "$METHOD" == "mmd" ]]; then
-    echo "Running MMD experiments..."
-    python launch_multi_agent_experiment.py --method=$METHOD
+    echo "---------------Running MMD experiments---------------"
+    python launch_multi_agent_experiment.py --lp 'MPDEnsemble'
 else
-    echo "Running MDOC experiments..."
-    python launch_multi_agent_experiment.py --method=$METHOD
+    echo "---------------Running MDOC experiments---------------"
+    python launch_multi_agent_experiment.py --lp 'MPDEnsemble'
 fi
 
 echo "Done."

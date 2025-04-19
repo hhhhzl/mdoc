@@ -10,12 +10,13 @@ class TaskEnsemble(Task):
     def __init__(self,
                  tasks: Dict[int, Task],
                  transforms: Dict[int, torch.Tensor],
+                 tensor_args: Dict=None,
                  **kwargs):
         self.tasks = tasks  # Dict[int, PlanningTask]
         self.transforms = transforms  # Dict[int, torch.Tensor [dx dy] in 2D.]
         envs_dict = {k: task.env for k, task in tasks.items()}
-        env = EnvEnsemble(envs_dict, transforms)
-        super().__init__(env, tasks[0].robot, **kwargs)
+        env = EnvEnsemble(envs_dict, transforms, tensor_args)
+        super().__init__(env, tasks[0].robot, tensor_args, **kwargs)
 
     def transform_q(self, task_id: int, q):
         if q.shape[-1] > self.transforms[task_id].shape[0]:
@@ -40,9 +41,10 @@ class PlanningTaskEnsemble(TaskEnsemble):
     def __init__(self,
                  tasks: Dict[int, PlanningTask],
                  transforms: Dict[int, torch.Tensor],
+                 tensor_args: Dict = None,
                  ws_limits=None,
                  **kwargs):
-        super().__init__(tasks, transforms, **kwargs)
+        super().__init__(tasks, transforms, tensor_args, **kwargs)
         self.ws_limits = self.env.limits if ws_limits is None else ws_limits
         self.ws_min = self.ws_limits[0]
         self.ws_max = self.ws_limits[1]

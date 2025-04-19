@@ -12,6 +12,8 @@ def get_torch_device(device=None):
             return torch.device(device)
         elif device == "mps" and torch.backends.mps.is_available():
             return torch.device(device)
+        elif device == 'cpu':
+            return torch.device("cpu")
 
     if torch.cuda.is_available():
         device = 'cuda'
@@ -22,7 +24,9 @@ def get_torch_device(device=None):
     return torch.device(device)
 
 
-DEFAULT_TENSOR_ARGS = {'device': get_torch_device("cuda"), 'dtype': torch.float32}
+def get_default_tensor_args(device=None):
+    return {'device': get_torch_device(device), 'dtype': torch.float32}
+
 
 def dict_to_device(ob, device):
     if isinstance(ob, collections.Mapping):
@@ -155,6 +159,7 @@ def is_positive_semi_definite(mat):
     # checks if mat is a positive semi-definite matrix
     return bool((mat == mat.T).all() and (torch.linalg.eigvals(mat).real >= 0).all())
 
+
 def is_positive_definite(mat):
     # checks if mat is a positive definite matrix
     return bool((mat == mat.T).all() and (torch.linalg.eigvals(mat).real > 0).all())
@@ -164,5 +169,3 @@ def torch_intersect_1d(a, b):
     a_cat_b, counts = torch.cat([a, b]).unique(return_counts=True)
     intersection = a_cat_b[torch.where(counts.gt(1))]
     return intersection
-
-
