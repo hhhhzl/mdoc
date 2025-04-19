@@ -136,7 +136,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         qs = []
         for j in range(model_params['params']['number_sample']):
             actions = traj_0s[j].cpu().numpy() if self.device != 'cpu' else traj_0s[j].numpy()
-            costs, q = self._rollout(model_id, self.state_inits[model_id], actions)
+            costs, q = self._rollout_us(model_id, self.state_inits[model_id], actions)
             sample_costs.append(costs)
             qs.append(q)
 
@@ -168,18 +168,33 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         return traj_i_m1, costs.mean().item()
 
-    def _rollout(self, model_id: int, state: np.ndarray, actions: np.ndarray):
-        """rollout"""
+    def _rollout_us(self, model_id: int, state: np.ndarray, us: np.ndarray):
+        """
+        Args:
+            model_id: Function that takes (state, action) and returns new state
+            state: Initial state object (must have reward and pipeline_state attributes)
+            us: Tensor of actions shape [T, action_dim]
+        Returns:
+            rews: Tensor of rewards shape [T]
+            pipeline_states: List of pipeline states
+        """
         env_model = self.env_models[model_id]
         costs = []
-        states = [state]
-        for t in range(actions.shape[0]):
-            state, cost, done, _ = env_model.step(state, actions[t])
-            costs.append(cost)
-            states.append(state)
-            if done:
-                break
-        return np.array(costs), states
+        pipeline_states = []
+        if torch.is_tensor(us):
+            us = [u for u in us]
+
+        for u in us:
+            state = env_model.step(state, u)
+            costs.append(state.cost)
+            pipeline_states.append(state.pipeline_state)
+
+        if torch.is_tensor(costs[0]):
+            costs = torch.stack(costs)
+        else:
+            costs = torch.tensor(costs)
+
+        return costs, pipeline_states
 
     @torch.no_grad()
     def run_inference(

@@ -69,7 +69,7 @@ def interpolate_points_v1(points, num_interpolated_points):
     """
     Interpolates points to have num_interpolated_points between each pair of points.
     """
-    # linear does not support for mps
+    # linear does not support for mps, convert to cpu
     device = get_torch_device()
     if device != 'cuda':
         points = points.cpu()
