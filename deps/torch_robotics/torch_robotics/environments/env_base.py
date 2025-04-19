@@ -292,6 +292,7 @@ class EnvBase(ABC):
         print("DEFAULTING TO TRUE IN IS_START_GOAL_VALID_FOR_DATA_GEN FUNCTION")
         return True
 
+
 if __name__ == '__main__':
     tensor_args = get_default_tensor_args()
     spheres = MultiSphereField(torch.zeros(2, **tensor_args).view(1, -1),
@@ -307,7 +308,7 @@ if __name__ == '__main__':
     theta = np.deg2rad(45)
     # obj_field.set_position_orientation(pos=[-0.5, 0., 0.])
     # obj_field.set_position_orientation(ori=[np.cos(theta/2), 0, 0, np.sin(theta/2)])
-    obj_field.set_position_orientation(pos=[-0.5, 0., 0.], ori=[np.cos(theta/2), 0, 0, np.sin(theta/2)])
+    obj_field.set_position_orientation(pos=[-0.5, 0., 0.], ori=[np.cos(theta / 2), 0, 0, np.sin(theta / 2)])
 
     ##############################################################################################################
     env = EnvBase(
@@ -329,4 +330,3 @@ if __name__ == '__main__':
     # Render gradient of sdf
     env.render_grad_sdf(ax, fig)
     plt.show()
-

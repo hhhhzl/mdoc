@@ -16,20 +16,20 @@ from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_l
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOC
+from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
 from mdoc.common import get_start_goal_pos_circle
 from mdoc.common.pretty_print import *
-from mdoc.config.mmd_params import MMDParams as params
+from mdoc.config.mdoc_params import MDOCParams as params
 from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
     get_result_dir_from_trial_config, TrialSuccessStatus
 
 
 allow_ops_in_compiled_graph()
-device = 'cuda'
-device = get_torch_device(device)
+device = get_torch_device(params.device)
+print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
 tensor_args = {'device': device, 'dtype': torch.float32}
 
 
@@ -51,6 +51,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'start_guide_steps_fraction': params.start_guide_steps_fraction,
         'n_guide_steps': params.n_guide_steps,
         'n_diffusion_steps_without_noise': params.n_diffusion_steps_without_noise,
+        'n_diffusion_steps': params.n_diffusion_steps,
         'weight_grad_cost_collision': params.weight_grad_cost_collision,
         'weight_grad_cost_smoothness': params.weight_grad_cost_smoothness,
         'weight_grad_cost_constraints': params.weight_grad_cost_constraints,
@@ -110,8 +111,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         low_level_planner_class = MPD
     elif test_config.single_agent_planner_class == "MPDEnsemble":
         low_level_planner_class = MPDEnsemble
-    elif test_config.single_agent_planner_class == "MDOC":
-        low_level_planner_class = MDOC
+    elif test_config.single_agent_planner_class == "MDOCEnsemble":
+        low_level_planner_class = MDOCEnsemble
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -328,7 +329,7 @@ if __name__ == '__main__':
     test_config_single_tile.num_agents = 3
     test_config_single_tile.instance_name = "test"
     test_config_single_tile.multi_agent_planner_class = "XECBS"  # Or "ECBS" or "XCBS" or "CBS" or "PP".
-    test_config_single_tile.single_agent_planner_class = "MPDEnsemble"  # Or "MPD"
+    test_config_single_tile.single_agent_planner_class = "MDOCEnsemble"  # Or "MPD"
     test_config_single_tile.stagger_start_time_dt = 0
     test_config_single_tile.runtime_limit = 60 * 3  # 3 minutes.
     test_config_single_tile.time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -351,7 +352,7 @@ if __name__ == '__main__':
         test_config_single_tile.agent_skeleton_l = [[[0, 0]]] * test_config_single_tile.num_agents
         torch.random.manual_seed(10)
         test_config_single_tile.start_state_pos_l, test_config_single_tile.goal_state_pos_l = \
-        get_start_goal_pos_circle(test_config_single_tile.num_agents, 0.8)
+        get_start_goal_pos_circle(device, test_config_single_tile.num_agents, 0.8)
         print("Starts:", test_config_single_tile.start_state_pos_l)
         print("Goals:", test_config_single_tile.goal_state_pos_l)
 

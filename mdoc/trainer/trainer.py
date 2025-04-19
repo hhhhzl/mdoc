@@ -35,7 +35,8 @@ def save_model_to_disk(model, epoch, total_steps, checkpoints_dir=None, prefix='
         return
 
     torch.save(model.state_dict(), os.path.join(checkpoints_dir, f'{prefix}current_state_dict.pth'))
-    torch.save(model.state_dict(), os.path.join(checkpoints_dir, f'{prefix}epoch_{epoch:04d}_iter_{total_steps:06d}_state_dict.pth'))
+    torch.save(model.state_dict(),
+               os.path.join(checkpoints_dir, f'{prefix}epoch_{epoch:04d}_iter_{total_steps:06d}_state_dict.pth'))
     torch.save(model, os.path.join(checkpoints_dir, f'{prefix}current.pth'))
     torch.save(model, os.path.join(checkpoints_dir, f'{prefix}epoch_{epoch:04d}_iter_{total_steps:06d}.pth'))
 
@@ -116,23 +117,28 @@ def do_summary(
     model.train()
 
 
-def train(model=None, train_dataloader=None, epochs=None, lr=None, steps_til_summary=None, model_dir=None, loss_fn=None,
-          train_subset=None,
-          summary_fn=None, steps_til_checkpoint=None,
-          val_dataloader=None, val_subset=None,
-          clip_grad=False,
-          clip_grad_max_norm=1.0,
-          val_loss_fn=None,
-          optimizers=None, steps_per_validation=10, max_steps=None,
-          use_ema: bool = True,
-          ema_decay: float = 0.995, step_start_ema: int = 1000, update_ema_every: int = 10,
-          use_amp=False,
-          early_stopper_patience=-1,
-          debug=False,
-          tensor_args=get_default_tensor_args(),
-          **kwargs
-          ):
-
+def train(
+        model=None,
+        train_dataloader=None,
+        epochs=None, lr=None,
+        steps_til_summary=None,
+        model_dir=None,
+        loss_fn=None,
+        train_subset=None,
+        summary_fn=None, steps_til_checkpoint=None,
+        val_dataloader=None, val_subset=None,
+        clip_grad=False,
+        clip_grad_max_norm=1.0,
+        val_loss_fn=None,
+        optimizers=None, steps_per_validation=10, max_steps=None,
+        use_ema: bool = True,
+        ema_decay: float = 0.995, step_start_ema: int = 1000, update_ema_every: int = 10,
+        use_amp=False,
+        early_stopper_patience=-1,
+        debug=False,
+        tensor_args=get_default_tensor_args(),
+        **kwargs
+):
     print(f'\n------- TRAINING STARTED -------\n')
 
     ema_model = None

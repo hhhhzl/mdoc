@@ -12,6 +12,8 @@ from mdoc.models.diffusion_models.sample_functions import (
 )
 from .diffusion_model_base import make_timesteps
 import einops
+from torch_robotics.robots.robot_base import RobotState
+from concurrent.futures import ThreadPoolExecutor
 
 
 class ModelBasedDiffusionEnsemble(nn.Module):
@@ -23,14 +25,15 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
     def __init__(
             self,
+            robot,
             env_models: Dict[int, Any],
             transforms: Dict[int, torch.Tensor],
-            env_name: str,
+            start_state_pos: torch.tensor,
+            goal_state_pos: torch.tensor,
             seed: int = 0,
             enable_demo: bool = False,
             context_model=None,
-            disable_recommended_params: bool = False,
-            diffusion_params: Dict[str: float] = None,
+            disable_recommended_params: bool = True,
             device: str = 'cpu',
             **kwargs
     ):
@@ -46,8 +49,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         """
         super().__init__(**kwargs)
         self.device = device
+        self.robot = robot
         self.env_models = env_models
-        self.env_name = env_name
         self.enable_demo = enable_demo
         self.disable_recommended_params = disable_recommended_params
 
@@ -56,8 +59,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         self.diffusion_params = {
             'temp_sample': mparams.temp_sample,
+            'n_samples': mparams.n_samples,
             'n_diffusion_step': 100,
-            'number_sample': mparams.n_samples,
             'horizon': mparams.horizon,
             'beta0': 1e-4,
             'betaT': 0.02
@@ -66,13 +69,14 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         self.recommended_params = {
             "temp_sample": 0.1,
             "n_diffusion_step": 100,
-            "number_sample": 8192,
+            'n_samples': 2000,
             "horizon": 40
         }
 
         # Initialization
         self.models = {}
-        self.state_inits = {}
+        self.start_state_pos = start_state_pos
+        self.goal_state_pos = goal_state_pos
         for model_id, env_model in env_models.items():
             self._setup_model_environment(model_id, env_model)
         self.transforms = transforms
@@ -81,12 +85,19 @@ class ModelBasedDiffusionEnsemble(nn.Module):
     def _setup_model_environment(self, model_id: int, env_model: Any):
         params = self.diffusion_params.copy()
         if not self.disable_recommended_params:
-            for param_name in ["temp_sample", "n_diffusion_step", "number_sample", "horizon"]:
+            for param_name in ["temp_sample", "n_diffusion_step", "n_samples", "horizon"]:
                 if param_name in self.recommended_params:
                     params[param_name] = self.recommended_params[param_name]
 
         setattr(self, f'model_{model_id}_params', params)
-        self.state_inits[model_id] = env_model.reset()
+        self.state_inits = RobotState(
+            q=self.start_state_pos,
+            q_dot=torch.Tensor([0, 0]),
+            cost=0,
+            collision_cost=0,
+            control_cost=0,
+            pipeline_state=torch.cat([self.start_state_pos, self.start_state_pos])
+        )
         self._setup_diffusion_params(model_id, params)
 
     def _setup_diffusion_params(self, model_id: int, params: dict):
@@ -124,19 +135,18 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         traj_i = traj_bars_i * torch.sqrt(model_params['alphas_bar'][i])
 
         #  Monte Carlo Sample from q_i
-        eps_u = torch.randn((model_params['params']['number_sample'],
-                             model_params['params']['horizon'],
-                             env_model.action_size),
-                            device=self.device)
+        # velocity
+        eps_u = torch.randn((model_params['params']['n_samples'], model_params['params']['horizon'], self.robot.q_dim * 2), device=self.device)
         traj_0s = eps_u * model_params['sigmas'][i] + traj_bars_i
         traj_0s = torch.clamp(traj_0s, -1.0, 1.0)
 
         # evaluate samples
         sample_costs = []
         qs = []
-        for j in range(model_params['params']['number_sample']):
-            actions = traj_0s[j].cpu().numpy() if self.device != 'cpu' else traj_0s[j].numpy()
-            costs, q = self._rollout_us(model_id, self.state_inits[model_id], actions)
+        for j in tqdm(range(model_params['params']['n_samples']), desc=f"MC Sampling"):
+            actions = self.robot.get_velocity(traj_0s)[j].cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_0s)[j].numpy()
+            costs, q = self._rollout_us(model_id, self.state_inits, actions)
+            traj_0s[..., :self.robot.q_dim] = torch.stack(q).squeeze(1)[..., :self.robot.q_dim]
             sample_costs.append(costs)
             qs.append(q)
 
@@ -161,14 +171,11 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         # calculate score function
         score = 1 / (1.0 - model_params['alphas_bar'][i]) * (
-                -traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
-        traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) *
-                     (traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(
-            model_params['alphas_bar'][i - 1])
-
+                - traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
+        traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) * (traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(model_params['alphas_bar'][i - 1])
         return traj_i_m1, costs.mean().item()
 
-    def _rollout_us(self, model_id: int, state: np.ndarray, us: np.ndarray):
+    def _rollout_us(self, model_id: int, state: torch.tensor, us: torch.tensor):
         """
         Args:
             model_id: Function that takes (state, action) and returns new state
@@ -185,7 +192,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             us = [u for u in us]
 
         for u in us:
-            state = env_model.step(state, u)
+            state = self.robot.step(state, torch.from_numpy(u), env_model)
             costs.append(state.cost)
             pipeline_states.append(state.pipeline_state)
 
@@ -204,6 +211,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             cross_conds: Dict[Tuple[int, int], Tuple[int, int]] = None,
             model_ids: List[int] = None,
             n_samples: int = 100,
+            batch_size: int = 32,
             return_chain: bool = False,
             **diffusion_kwargs):
         """
@@ -219,23 +227,27 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             if return_chain is True，return the diffusion chain
             else return final optimized trajectory
         """
-        if model_ids is None:
-            model_ids = list(self.env_models.keys())
+        contexts = deepcopy(contexts)
+        hard_conds = deepcopy(hard_conds)
+        cross_conds = deepcopy(cross_conds)
+        if contexts is None:
+            contexts = [None] * len(self.models)
+        for m, c_dict in hard_conds.items():
+            for k, v in c_dict.items():
+                # k is the key of the condition, usually state index in the trajectory
+                hard_conds[m][k] = einops.repeat(v, 'd -> b d', b=n_samples)
 
         results = {}
         chains = {}
-
-        for model_id in model_ids:
-            traj_n = torch.zeros((self.models[model_id]['params']['horizon'], self.env_models[model_id].action_size),
-                                 device=self.device)
+        for model_id in self.models.keys():
+            traj_n = torch.zeros((n_samples, self.models[model_id]['params']['horizon'], self.robot.q_dim * 2), device=self.device)
 
             # Reverse
             traj_i = traj_n
             model_chain = []
             costs = []
 
-            for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, 0, -1),
-                          desc=f"Diffusing model {model_id}"):
+            for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, 0, -1), desc=f"Diffusing model {model_id}"):
                 traj_i, cost = self._reverse_diffusion_step(model_id, i, traj_i)
                 if return_chain:
                     model_chain.append(traj_i)
@@ -245,16 +257,17 @@ class ModelBasedDiffusionEnsemble(nn.Module):
                 chains[model_id] = torch.stack(model_chain)
 
             # evaluate final cost
-            final_actions = traj_i.cpu().numpy() if self.device != 'cpu' else traj_i.numpy()
-            costs_final, _ = self._rollout(model_id, self.state_inits[model_id], final_actions)
+            final_actions = self.robot.get_velocity(traj_i).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
+            costs_final, _ = self._rollout_us(model_id, self.state_inits, final_actions)
             results[model_id] = {
                 'trajectory': traj_i,
-                'cost': np.mean(costs_final),
+                'cost': costs_final.mean().item(),
                 'cost_history': costs
             }
 
         if return_chain:
             return chains
+
         return results
 
     @torch.no_grad()
