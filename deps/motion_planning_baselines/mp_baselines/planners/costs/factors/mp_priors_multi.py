@@ -73,11 +73,11 @@ class MultiMPPrior:
         if means is None:
             self.num_modes = goal_states.shape[0] if self.goal_directed else 1
             means = self.get_const_vel_mean(
-                            start_state,
-                            goal_states,
-                            dt,
-                            num_steps,
-                            dof)
+                start_state,
+                goal_states,
+                dt,
+                num_steps,
+                dof)
         else:
             self.num_modes = means.shape[0]
 
@@ -129,20 +129,20 @@ class MultiMPPrior:
 
     @classmethod
     def const_vel_trajectory(
-        cls,
-        start_state,
-        goal_state,
-        dt,
-        num_steps,
-        dof,
-        set_initial_final_vel_to_zero=True,
-        tensor_args=None
+            cls,
+            start_state,
+            goal_state,
+            dt,
+            num_steps,
+            dof,
+            set_initial_final_vel_to_zero=True,
+            tensor_args=None
     ):
         state_traj = torch.zeros(num_steps + 1, 2 * dof, **tensor_args)
         mean_vel = (goal_state[:dof] - start_state[:dof]) / (num_steps * dt)
         for i in range(num_steps + 1):
             state_traj[i, :dof] = start_state[:dof] * (num_steps - i) * 1. / num_steps \
-                                  + goal_state[:dof] * i * 1./num_steps
+                                  + goal_state[:dof] * i * 1. / num_steps
         if set_initial_final_vel_to_zero:
             # initial and final velocities are set to zero
             state_traj[1:-1, dof:] = mean_vel.unsqueeze(0)
@@ -151,12 +151,12 @@ class MultiMPPrior:
         return state_traj
 
     def get_const_vel_mean(
-        self,
-        start_state,
-        goal_states,
-        dt,
-        num_steps,
-        dof,
+            self,
+            start_state,
+            goal_states,
+            dt,
+            num_steps,
+            dof,
     ):
 
         # Make mean goal-directed if goal_state is provided.
@@ -209,14 +209,13 @@ class MultiMPPrior:
     #     else:
     #         return torch.inverse(K_inv)
 
-
     def get_const_vel_covariance(
-        self,
-        dt,
-        K_s_inv,
-        K_gp_inv,
-        K_g_inv,
-        precision_matrix=True,
+            self,
+            dt,
+            K_s_inv,
+            K_gp_inv,
+            K_g_inv,
+            precision_matrix=True,
     ):
         # To construct the covariance we need to use float64, because the small covariances of the start, GP and goal
         # state distributions lead to very large inverse covariances during the construction of these matrices.
@@ -234,8 +233,8 @@ class MultiMPPrior:
         A = torch.eye(self.M, **tensor_args_tmp)
         A[self.state_dim:, :-self.state_dim] += -1. * diag_Phis
         if self.goal_directed:
-            b = torch.zeros(self.state_dim, self.M,  **tensor_args_tmp)
-            b[:, -self.state_dim:] = torch.eye(self.state_dim,  **tensor_args_tmp)
+            b = torch.zeros(self.state_dim, self.M, **tensor_args_tmp)
+            b[:, -self.state_dim:] = torch.eye(self.state_dim, **tensor_args_tmp)
             A = torch.cat((A, b))
 
         Q_inv = K_s_inv

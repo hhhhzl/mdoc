@@ -495,7 +495,7 @@ class MPDEnsemble(SingleAgentPlanner):
         for task_id, cost_constraints_l in task_id_to_cost_constraints_l.items():
             for cost_constraint in cost_constraints_l:
                 cost_constraint.traj_ranges -= task_id * self.n_support_points
-                cost_constraint.qs -= self.transforms[task_id]  # TODO(yorai): check this.
+                cost_constraint.qs -= self.transforms[task_id]
                 self.guides[task_id].add_extra_costs([cost_constraint],
                                                      [self.weight_grad_cost_constraints
                                                       if not cost_constraint.is_soft else

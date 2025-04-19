@@ -60,7 +60,6 @@ class DiffusionsEnsemble(nn.Module):
                       warm_start_path_b: torch.Tensor = None,
                       **sample_kwargs):
         device = self.models[0].betas.device
-
         batch_size = shape[0]
         x = {}
         chains = {}

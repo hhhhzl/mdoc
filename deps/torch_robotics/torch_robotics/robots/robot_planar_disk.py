@@ -32,30 +32,12 @@ import matplotlib.pyplot as plt
 from mdoc.common.constraints import *
 from mdoc.common.trajectory_utils import *
 # Project imports.
-from torch_robotics.robots.robot_base import RobotBase
+from torch_robotics.robots.robot_base import RobotBase, RobotState
 from torch_robotics.torch_utils.torch_utils import to_numpy, tensor_linspace_v1, to_torch
 from mdoc.config import MMDParams as params
 
 
 class RobotPlanarDisk(RobotBase):
-
-    # def __init__(self,
-    #              name='RobotPlanarDisk',
-    #              radius=0.07,
-    #              q_limits=torch.tensor([[-1, -1], [1, 1]]),  # Confspace limits.
-    #              **kwargs):
-    #     super().__init__(
-    #         name=name,
-    #         q_limits=to_torch(q_limits, **kwargs['tensor_args']),
-    #         **kwargs
-    #     )
-    #
-    #     ################################################################################################
-    #     # Robot
-    #     self.radius = radius
-    #     # Set the link margins for object collision checking to the radius of the disk here and in the parent.
-    #     self.link_margins_for_object_collision_checking = [radius]
-
     def __init__(self,
                  name='RobotPlanarDisk',
                  radius=params.robot_planar_disk_radius,
@@ -122,8 +104,8 @@ class RobotPlanarDisk(RobotBase):
                 points = np.reshape(trajs_np, (-1, 3))
                 colors_scatter = []
                 for segment, color in zip(segments, colors):
-                    colors_scatter.extend([color]*segment.shape[0])
-                ax.scatter(points[:, 0], points[:, 1], points[:, 2], color=colors_scatter, s=2**2)
+                    colors_scatter.extend([color] * segment.shape[0])
+                ax.scatter(points[:, 0], points[:, 1], points[:, 2], color=colors_scatter, s=2 ** 2)
             else:
                 segments = np.array(list(zip(trajs_np[..., 0], trajs_np[..., 1]))).swapaxes(1, 2)
                 line_segments = mcoll.LineCollection(segments, colors=colors, linestyle=linestyle)
@@ -131,21 +113,21 @@ class RobotPlanarDisk(RobotBase):
                 points = np.reshape(trajs_np, (-1, 2))
                 colors_scatter = []
                 for segment, color in zip(segments, colors):
-                    colors_scatter.extend([color]*segment.shape[0])
+                    colors_scatter.extend([color] * segment.shape[0])
                 # ax.scatter(points[:, 0], points[:, 1], color=colors_scatter, s=2**2)
         if start_state is not None:
             start_state_np = to_numpy(start_state)
             if len(start_state_np) == 3:
-                ax.plot(start_state_np[0], start_state_np[1], start_state_np[2], 'go', markersize=self.radius*100)
+                ax.plot(start_state_np[0], start_state_np[1], start_state_np[2], 'go', markersize=self.radius * 100)
             else:
-                ax.plot(start_state_np[0], start_state_np[1], 'go', markersize=self.radius*100)
+                ax.plot(start_state_np[0], start_state_np[1], 'go', markersize=self.radius * 100)
         if goal_state is not None:
             goal_state_np = to_numpy(goal_state)
             if len(goal_state_np) == 3:
                 ax.plot(goal_state_np[0], goal_state_np[1], goal_state_np[2], marker='o',
-                        color='purple', markersize=self.radius*100)
+                        color='purple', markersize=self.radius * 100)
             else:
-                ax.plot(goal_state_np[0], goal_state_np[1], marker='o', color='purple', markersize=self.radius*100)
+                ax.plot(goal_state_np[0], goal_state_np[1], marker='o', color='purple', markersize=self.radius * 100)
         if constraints_l is not None:
             for c in constraints_l:
                 # if isinstance(c, MultiPointConstraint):
@@ -159,12 +141,14 @@ class RobotPlanarDisk(RobotBase):
                         # ax.add_patch(circle)
                         # Show gaussian centered at this point.
                         for i in range(1, 50):
-                            circle = plt.Circle(q, self.radius * (i / 50)**4, color='red', zorder=10, alpha=0.2 * (50 - i)/50)
+                            circle = plt.Circle(q, self.radius * (i / 50) ** 4, color='red', zorder=10,
+                                                alpha=0.2 * (50 - i) / 50)
                             ax.add_patch(circle)
 
                 # elif isinstance(c, VertexConstraint):
                 #     q = c.get_q()
                 # ...
+
     def fk_map_collision_impl(self, q, **kwargs):
         # There is no forward kinematics. Assume it's the identity.
         # Add tasks space dimension
@@ -201,3 +185,43 @@ class RobotPlanarDisk(RobotBase):
         collision_points = collision_points * collisions.unsqueeze(-1)
         collision_points[~collisions.unsqueeze(-1).expand_as(collision_points)] = float('nan')
         return collisions, collision_points
+
+    def _dynamics(self, q, u):  # position, velocity, accelation
+        new_q_dot = u
+        new_q = q + new_q_dot * self.dt
+        return new_q
+
+    def step(self, state: RobotState, u: torch.Tensor, env=None, prior=None) -> RobotState:
+        new_q_dot = u
+        new_q = self._dynamics(state.q, new_q_dot)
+
+        total_cost, collision_cost, control_cost = 0.0, 0.0, 0.0
+        control_cost = torch.sum(u ** 2).item()
+        total_cost += control_cost
+
+        if env is not None:
+            # Get collision points from forward kinematics
+            collision_points = self.fk_map_collision(new_q.unsqueeze(0))[0]
+
+            # Compute SDF for all collision points
+            sdf_values = env.compute_sdf(collision_points)
+
+            # Penalize points inside obstacles (SDF < 0)
+            penetration = torch.clamp(-sdf_values, min=0)
+            collision_cost = torch.sum(penetration).item()
+            total_cost += collision_cost * 10.0
+
+        if prior is not None:
+            # Flatten state for prior evaluation
+            state_vec = torch.cat([new_q, new_q_dot])
+            prior_cost = -prior.dist.log_prob(state_vec).mean().item()
+            total_cost += prior_cost
+
+        return RobotState(
+            q=new_q,
+            q_dot=new_q_dot,
+            cost=total_cost,
+            collision_cost=collision_cost,
+            control_cost=control_cost,
+            pipeline_state=torch.cat([new_q, new_q_dot])
+        )

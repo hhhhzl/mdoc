@@ -11,7 +11,7 @@ from pathlib import Path
 import einops
 import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint
 from mdoc.models import TemporalUnet, UNET_DIM_MULTS
 from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
@@ -19,11 +19,12 @@ from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, 
 from mdoc.trainer import get_dataset, get_model
 from mdoc.utils.loading import load_params_from_yaml
 from mdoc.planners.common import PlannerOutput, SingleAgentPlanner
-from mdoc.models.diffusion_models.diffusion_ensemble import DiffusionsEnsemble
+from mdoc.models.diffusion_models.mbd_ensemble import ModelBasedDiffusionEnsemble
 from mdoc.common.experiences import PathExperience, PathBatchExperience
 from mdoc.common.pretty_print import *
 
 from torch_robotics.robots import *
+from torch_robotics import environments
 from torch_robotics.torch_utils.seed import fix_random_seed
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
 from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torch_model_params
@@ -46,10 +47,15 @@ class MDOCEnsemble(SingleAgentPlanner):
             planner_alg: str,
             start_state_pos: torch.tensor,
             goal_state_pos: torch.tensor,
+
+            #
             use_guide_on_extra_objects_only: bool,
             start_guide_steps_fraction: float,
             n_guide_steps: int,
             n_diffusion_steps_without_noise: int,
+            n_diffusion_steps: int,
+
+            # costs
             weight_grad_cost_collision: float,
             weight_grad_cost_smoothness: float,
             weight_grad_cost_constraints: float,
@@ -64,17 +70,24 @@ class MDOCEnsemble(SingleAgentPlanner):
             n_samples: int,
             n_local_inference_noising_steps: int,
             n_local_inference_denoising_steps: int,
+
+            # mdoc settings
+            dynamics_model: Optional = None,
+            receding_horizon: Optional[int] = None,
+            use_soft_sphere_constraints: bool = True,
+            sphere_constraint_radius: float = 0.15,
+            mdoc_score_monte_carlo_samples: int = 64,
             **kwargs
         ):
         super().__init__()
+        ####################################
+        fix_random_seed(seed)
+        tensor_args = {"device": get_torch_device(device), "dtype": torch.float32}
+
         # The constraints are stored here. This is a list of ConstraintCost.
         self.constraints = []
         self.weight_grad_cost_constraints = weight_grad_cost_constraints
         self.weight_grad_cost_soft_constraints = weight_grad_cost_soft_constraints
-
-        ####################################
-        fix_random_seed(seed)
-        tensor_args = {'device': get_torch_device(device), 'dtype': torch.float32}
 
         print(f'################################################################################################')
         print(f'Initializing Planner with Models -- {model_ids}')
@@ -95,6 +108,7 @@ class MDOCEnsemble(SingleAgentPlanner):
         model_dirs, results_dirs, args = [], [], []
         self.models, tasks = {}, {}
         self.guides = {}
+        self.robots = {}
         datasets = []
         sample_kwargs = []
         contexts = None
@@ -125,39 +139,12 @@ class MDOCEnsemble(SingleAgentPlanner):
             dt = trajectory_duration / n_support_points  # time interval for finite differences
             robot.dt = dt
 
-            # Load prior model
-            diffusion_configs = dict(
-                variance_schedule=args[-1]['variance_schedule'],
-                n_diffusion_steps=args[-1]['n_diffusion_steps'],
-                predict_epsilon=args[-1]['predict_epsilon'],
-            )
-            unet_configs = dict(
-                state_dim=dataset.state_dim,
-                n_support_points=dataset.n_support_points,
-                unet_input_dim=args[-1]['unet_input_dim'],
-                dim_mults=UNET_DIM_MULTS[args[-1]['unet_dim_mults_option']]
-            )
-            diffusion_model = get_model(
-                model_class=args[-1]['diffusion_model_class'],
-                model=TemporalUnet(**unet_configs),
-                tensor_args=tensor_args,
-                **diffusion_configs,
-                **unet_configs
-            )
-            diffusion_model.load_state_dict(
-                torch.load(os.path.join(model_dir, 'checkpoints',
-                                        'ema_model_current_state_dict.pth' if args[-1][
-                                            'use_ema'] else 'model_current_state_dict.pth'),
-                           map_location=tensor_args['device'])
-            )
-            diffusion_model.eval()
-            model = diffusion_model
-            freeze_torch_model_params(model)
-            model = torch.compile(model)
-            model.warmup(horizon=n_support_points, device=device)
+            model_class = getattr(environments, model_id.split("-")[0])
+            model = model_class(tensor_args=tensor_args)
             self.models[j] = model
+            self.robots[j] = robot
             tasks[j] = task
-            # =========== Model ==================== #
+            # =========== Model-Based ==================== #
 
             # =========== Cost ==================== #
             # Cost collisions
@@ -213,7 +200,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             )
             self.guides[j] = guide
 
-            t_start_guide = ceil(start_guide_steps_fraction * model.n_diffusion_steps)
+            t_start_guide = ceil(start_guide_steps_fraction * n_diffusion_steps)
             sample_fn_kwargs = dict(
                 guide=None if run_prior_then_guidance or run_prior_only else guide,
                 n_guide_steps=n_guide_steps,
@@ -250,9 +237,6 @@ class MDOCEnsemble(SingleAgentPlanner):
                              f"start_state_pos: {start_state_pos}\n"
                              f"goal_state_pos:  {goal_state_pos}\n")
 
-        print(f'start_state_pos: {start_state_pos}')
-        print(f'goal_state_pos: {goal_state_pos}')
-
         ####################################
         # Run motion planning inference
 
@@ -271,7 +255,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             hard_conds[len(model_ids) - 1] = goal_state_hard_cond
 
         self.transforms = transforms
-        ensemble = DiffusionsEnsemble(self.models, transforms)
+        self.model = ModelBasedDiffusionEnsemble(self.robot, self.models, transforms, start_state_pos, goal_state_pos)
         # cross conditioning
         self.cross_conds = {}
         for i in range(len(model_ids) - 1):
@@ -286,7 +270,7 @@ class MDOCEnsemble(SingleAgentPlanner):
         self.run_prior_then_guidance = run_prior_then_guidance
         self.n_diffusion_steps_without_noise = n_diffusion_steps_without_noise
         self.hard_conds = hard_conds
-        self.model = ensemble
+        self.datasets = datasets
         self.n_support_points = n_support_points
         self.t_start_guide = t_start_guide
         self.n_guide_steps = n_guide_steps
@@ -298,7 +282,7 @@ class MDOCEnsemble(SingleAgentPlanner):
         self.n_local_inference_noising_steps = n_local_inference_noising_steps  # n_local_inference_noising_steps
         self.n_local_inference_denoising_steps = n_local_inference_denoising_steps
         # Dataset.
-        self.datasets = datasets
+        # self.datasets = datasets
         # Task, e.g., planning task.
         self.task = tasks_ensemble
         # Directories.
@@ -348,8 +332,7 @@ class MDOCEnsemble(SingleAgentPlanner):
         # Carry out inference with the constraints. If there is no experience, inference from scratch.
         with TimerCUDA() as timer_inference:
             if experience is None:
-                trajs_normalized_iters_dict, _, _ = self.run_constrained_inference(
-                    cost_constraints_l)  # Shape [B (n_samples), H, D]
+                trajs_normalized_iters_dict, _, _ = self.run_constrained_inference(cost_constraints_l)  # Shape [B (n_samples), H, D]
             # Otherwise, use the experience path as a seed for a local inference call.
             else:
                 trajs_normalized_iters_dict, _, _ = self.run_constrained_local_inference(cost_constraints_l, experience)
@@ -499,7 +482,9 @@ class MDOCEnsemble(SingleAgentPlanner):
         # Sample trajectories with the diffusion/cvae model
         with TimerCUDA() as timer_model_sampling:
             trajs_normalized_iters_dict = self.model.run_inference(
-                self.contexts, self.hard_conds, cross_conds=self.cross_conds,
+                self.contexts,
+                self.hard_conds,
+                cross_conds=self.cross_conds,
                 n_samples=self.num_samples,
                 # horizon=self.n_support_points,
                 return_chain=True,

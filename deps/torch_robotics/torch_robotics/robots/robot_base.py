@@ -3,12 +3,29 @@ import itertools
 from abc import ABC
 from math import ceil
 from typing import Tuple
-
+from dataclasses import dataclass
 import torch
 
 from torch_robotics.torch_planning_objectives.fields.distance_fields import CollisionSelfField
 from torch_robotics.torch_utils.torch_utils import to_numpy, to_torch
 from torch_robotics.trajectory.utils import finite_difference_vector
+
+
+@dataclass
+class RobotState:
+    q: torch.Tensor  # joint positions
+    q_dot: torch.Tensor  # joint velocities
+    q_ddot: torch.Tensor = None  # joint accelerations
+    cost: float = 0.0  # total cost of this state
+    collision_cost: float = 0.0  # collision-specific cost
+    control_cost: float = 0.0  # control effort cost
+    pipeline_state: torch.Tensor = None  # flattened state representation
+
+    def __post_init__(self):
+        if self.q_ddot is None:
+            self.q_ddot = torch.zeros_like(self.q_dot)
+        if self.pipeline_state is None:
+            self.pipeline_state = torch.cat([self.q, self.q_dot, self.q_ddot])
 
 
 class RobotBase(ABC):
@@ -59,10 +76,13 @@ class RobotBase(ABC):
         # Objects collision field
         assert num_interpolated_points_for_object_collision_checking >= len(link_names_for_object_collision_checking)
         if num_interpolated_points_for_object_collision_checking % len(link_names_for_object_collision_checking) != 0:
-            self.points_per_link_object_collision_checking = ceil(num_interpolated_points_for_object_collision_checking / len(link_names_for_object_collision_checking))
-            num_interpolated_points_for_object_collision_checking = self.points_per_link_object_collision_checking * len(link_names_for_object_collision_checking)
+            self.points_per_link_object_collision_checking = ceil(
+                num_interpolated_points_for_object_collision_checking / len(link_names_for_object_collision_checking))
+            num_interpolated_points_for_object_collision_checking = self.points_per_link_object_collision_checking * len(
+                link_names_for_object_collision_checking)
         else:
-            self.points_per_link_object_collision_checking = int(num_interpolated_points_for_object_collision_checking / len(link_names_for_object_collision_checking))
+            self.points_per_link_object_collision_checking = int(
+                num_interpolated_points_for_object_collision_checking / len(link_names_for_object_collision_checking))
         self.self_collision_margin_robot = self_collision_margin_robot
         self.num_interpolated_points_for_object_collision_checking = num_interpolated_points_for_object_collision_checking
         self.link_names_for_object_collision_checking = link_names_for_object_collision_checking
@@ -77,7 +97,8 @@ class RobotBase(ABC):
         if self.grasped_object is not None:
             self.link_margins_for_object_collision_checking_tensor = torch.cat(
                 (self.link_margins_for_object_collision_checking_tensor,
-                 torch.ones(self.grasped_object.n_base_points_for_collision, **self.tensor_args) * self.margin_for_grasped_object_collision_checking)
+                 torch.ones(self.grasped_object.n_base_points_for_collision,
+                            **self.tensor_args) * self.margin_for_grasped_object_collision_checking)
             )
 
         self.link_idxs_for_object_collision_checking = link_idxs_for_object_collision_checking
@@ -89,10 +110,13 @@ class RobotBase(ABC):
         else:
             assert num_interpolated_points_for_self_collision_checking >= len(link_names_for_self_collision_checking)
             if num_interpolated_points_for_self_collision_checking % len(link_names_for_self_collision_checking) != 0:
-                self.points_per_link_self_collision_checking = ceil(num_interpolated_points_for_self_collision_checking / len(link_names_for_self_collision_checking))
-                num_interpolated_points_for_self_collision_checking = self.points_per_link_self_collision_checking * len(link_names_for_self_collision_checking)
+                self.points_per_link_self_collision_checking = ceil(
+                    num_interpolated_points_for_self_collision_checking / len(link_names_for_self_collision_checking))
+                num_interpolated_points_for_self_collision_checking = self.points_per_link_self_collision_checking * len(
+                    link_names_for_self_collision_checking)
             else:
-                self.points_per_link_self_collision_checking = int(num_interpolated_points_for_self_collision_checking / len(link_names_for_self_collision_checking))
+                self.points_per_link_self_collision_checking = int(
+                    num_interpolated_points_for_self_collision_checking / len(link_names_for_self_collision_checking))
 
             self.link_names_for_self_collision_checking = link_names_for_self_collision_checking
             self.link_names_pairs_for_self_collision_checking = link_names_pairs_for_self_collision_checking
@@ -112,7 +136,7 @@ class RobotBase(ABC):
                 if link_1 in self.link_names_pairs_for_self_collision_checking:
                     for link_2 in self.link_names_pairs_for_self_collision_checking[link_1]:
                         j = self.link_names_for_self_collision_checking.index(link_2)
-                        idxs = [(i*p + m, j*p + n) for m, n in list(itertools.product(range(p), range(p)))]
+                        idxs = [(i * p + m, j * p + n) for m, n in list(itertools.product(range(p), range(p)))]
                         idxs_links_distance_matrix.extend(idxs)
                         total_self_distances_robot += len(idxs)
 
@@ -124,11 +148,13 @@ class RobotBase(ABC):
                 n_grasped_points = self.grasped_object.n_base_points_for_collision
                 for link_1 in self.link_names_for_self_collision_checking_with_grasped_object:
                     j = self.link_names_for_self_collision_checking.index(link_1)
-                    idxs = [(self_collision_robot_last_row_idx + m, j * p + n) for m, n in list(itertools.product(range(n_grasped_points), range(p)))]
+                    idxs = [(self_collision_robot_last_row_idx + m, j * p + n) for m, n in
+                            list(itertools.product(range(n_grasped_points), range(p)))]
                     idxs_links_distance_matrix.extend(idxs)
                     total_self_distances_grasped_object += len(idxs)
 
-                self_collision_margin_vector.extend([self.self_collision_margin_grasped_object] * total_self_distances_grasped_object)
+                self_collision_margin_vector.extend(
+                    [self.self_collision_margin_grasped_object] * total_self_distances_grasped_object)
 
             self_collision_margin_vector = to_torch(self_collision_margin_vector, **self.tensor_args)
 
@@ -201,5 +227,3 @@ class RobotBase(ABC):
             collision_points: (..., n_robots, n_robots, 2 or 3), collision points.
         """
         raise NotImplementedError
-
-
