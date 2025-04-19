@@ -89,7 +89,8 @@ class CBS:
     """
     Conflict-Based Search (CBS) algorithm.
     """
-    def __init__(self, low_level_planner_l,
+    def __init__(self,
+                 low_level_planner_l,
                  start_l: List[torch.Tensor],
                  goal_l: List[torch.Tensor],
                  start_time_l: List[int] = None,

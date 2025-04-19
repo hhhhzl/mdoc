@@ -30,7 +30,7 @@ from typing import List
 from torch_robotics.environments.env_base import EnvBase
 from torch_robotics.environments.primitives import ObjectField, MultiSphereField, MultiBoxField
 from torch_robotics.environments.utils import create_grid_spheres
-from torch_robotics.torch_utils.torch_utils import DEFAULT_TENSOR_ARGS
+from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 
 
@@ -200,7 +200,7 @@ if __name__ == '__main__':
     env = EnvDropRegion2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
-        tensor_args=DEFAULT_TENSOR_ARGS
+        tensor_args=get_default_tensor_args()
     )
     fig, ax = create_fig_and_axes(env.dim)
     env.render(ax)

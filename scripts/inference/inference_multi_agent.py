@@ -73,8 +73,8 @@ from torch_robotics.environments import *
 allow_ops_in_compiled_graph()
 
 TRAINED_MODELS_DIR = '../../data_trained_models/'
-device = get_torch_device()
-print(f">>>>>>>>> Using {device} <<<<<<<<<<<<<<<")
+device = get_torch_device(params.device)
+print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
 tensor_args = {'device': device, 'dtype': torch.float32}
 
 
@@ -394,7 +394,7 @@ if __name__ == '__main__':
         test_config_single_tile.agent_skeleton_l = [[[0, 0]]] * test_config_single_tile.num_agents
         torch.random.manual_seed(10)
         test_config_single_tile.start_state_pos_l, test_config_single_tile.goal_state_pos_l = \
-        get_start_goal_pos_circle(test_config_single_tile.num_agents, 0.8)
+        get_start_goal_pos_circle(device, test_config_single_tile.num_agents, 0.8)
         # Another option is to get random starts and goals.
         # get_start_goal_pos_random_in_env(test_config_single_tile.num_agents,
         #                                  EnvDropRegion2D,

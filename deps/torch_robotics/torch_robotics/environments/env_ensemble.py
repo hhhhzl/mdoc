@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 import torch
 
 from torch_robotics.environments import *
-from torch_robotics.torch_utils.torch_utils import DEFAULT_TENSOR_ARGS
+from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 
 
@@ -23,7 +23,7 @@ class EnvEnsemble(EnvBase):
 
         # loop on envs and transforms, and get the big map limits
         if tensor_args is None:
-            tensor_args = DEFAULT_TENSOR_ARGS
+            tensor_args = get_default_tensor_args()
         absolute_limits = torch.zeros(self.env_limits[0].shape, **tensor_args)
         for k in self.envs.keys():
             limits = self.env_limits[k]
@@ -52,34 +52,34 @@ class EnvEnsemble(EnvBase):
 
 
 if __name__ == '__main__':
-    env0 = EnvEmpty2D(tensor_args=DEFAULT_TENSOR_ARGS)
+    env0 = EnvEmpty2D(tensor_args=get_default_tensor_args())
 
     env1 = EnvConveyor2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
-        tensor_args=DEFAULT_TENSOR_ARGS
+        tensor_args=get_default_tensor_args()
     )
 
     env2 = EnvSquare2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
-        tensor_args=DEFAULT_TENSOR_ARGS
+        tensor_args=get_default_tensor_args()
     )
 
     env3 = EnvDense2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
-        tensor_args=DEFAULT_TENSOR_ARGS
+        tensor_args=get_default_tensor_args()
     )
 
     envs = {0: env0, 1: env1, 2: env2, 3: env3}
 
-    transforms = {0: torch.tensor([0., 0.], **DEFAULT_TENSOR_ARGS),
-                  1: torch.tensor([2., 0.], **DEFAULT_TENSOR_ARGS),
-                  2: torch.tensor([2., -2.], **DEFAULT_TENSOR_ARGS),
-                  3: torch.tensor([0., -2.], **DEFAULT_TENSOR_ARGS)}
+    transforms = {0: torch.tensor([0., 0.], **get_default_tensor_args()),
+                  1: torch.tensor([2., 0.], **get_default_tensor_args()),
+                  2: torch.tensor([2., -2.], **get_default_tensor_args()),
+                  3: torch.tensor([0., -2.], **get_default_tensor_args())}
 
-    env = EnvEnsemble(envs, transforms, tensor_args=DEFAULT_TENSOR_ARGS)
+    env = EnvEnsemble(envs, transforms, tensor_args=get_default_tensor_args())
 
     fig, ax = create_fig_and_axes(env.dim)
     env.render(ax)

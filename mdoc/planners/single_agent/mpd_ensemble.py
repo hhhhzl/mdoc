@@ -109,7 +109,7 @@ class MPDEnsemble(SingleAgentPlanner):
             model_dirs.append(model_dir)
             args.append(load_params_from_yaml(os.path.join(model_dir, 'args.yaml')))
 
-            ## Load dataset with env, robot, task ##
+            # Load dataset with env, robot, task #
             train_subset, train_dataloader, val_subset, val_dataloader = get_dataset(
                 dataset_class='TrajectoryDataset',
                 use_extra_objects=True,
@@ -261,10 +261,11 @@ class MPDEnsemble(SingleAgentPlanner):
         ########
         # The start and goal states are in the global frame. We need to convert them to the local frame of the task.
         start_state_pos_local = tasks_ensemble.inverse_transform_q(0, start_state_pos)
-        goal_state_pos_local = tasks_ensemble.inverse_transform_q(len(tasks)-1, goal_state_pos)
+        goal_state_pos_local = tasks_ensemble.inverse_transform_q(len(tasks) - 1, goal_state_pos)
         # A hard condition is a Dict[int, torch.tensor], traj ix to state.
         start_state_hard_cond = datasets[0].get_single_pt_hard_conditions(start_state_pos_local, 0, True)
-        goal_state_hard_cond = datasets[len(model_ids) - 1].get_single_pt_hard_conditions(goal_state_pos_local, -1, True)
+        goal_state_hard_cond = datasets[len(model_ids) - 1].get_single_pt_hard_conditions(goal_state_pos_local, -1,
+                                                                                          True)
         # Add to the hard conds dict. Mapping model id to its hard conditions dictionary.
         hard_conds = {0: start_state_hard_cond}
         if len(model_ids) - 1 in hard_conds:
@@ -387,7 +388,8 @@ class MPDEnsemble(SingleAgentPlanner):
             self.recent_call_data.cost_smoothness = results_ensemble['cost_smoothness_trajs_final_free']
             self.recent_call_data.cost_path_length = results_ensemble['cost_path_length_trajs_final_free']
             self.recent_call_data.cost_all = results_ensemble['cost_all_trajs_final_free']
-            self.recent_call_data.variance_waypoint_trajs_final_free = results_ensemble['variance_waypoint_trajs_final_free']
+            self.recent_call_data.variance_waypoint_trajs_final_free = results_ensemble[
+                'variance_waypoint_trajs_final_free']
         else:
             self.recent_call_data.idx_best_traj = None
             self.recent_call_data.traj_final_free_best = None
@@ -479,7 +481,8 @@ class MPDEnsemble(SingleAgentPlanner):
 
         print("==============")
         print("Got #constraints:", len(cost_constraints_l))
-        print(f'Constraints split to tasks: {task_id_to_cost_constraints_l.keys()}, with num constraints: {[len(v) for v in task_id_to_cost_constraints_l.values()]}')
+        print(
+            f'Constraints split to tasks: {task_id_to_cost_constraints_l.keys()}, with num constraints: {[len(v) for v in task_id_to_cost_constraints_l.values()]}')
 
         return task_id_to_cost_constraints_l
 
@@ -623,9 +626,9 @@ class MPDEnsemble(SingleAgentPlanner):
         print(f'percentage free trajs: {self.recent_call_data.fraction_free_trajs * 100:.2f}')
         print(f'percentage collision intensity: {self.recent_call_data.collision_intensity_trajs * 100:.2f}')
         print(f'cost smoothness: {self.recent_call_data.cost_smoothness.mean():.4f}, '
-                  f'{self.recent_call_data.cost_smoothness.std():.4f}')
+              f'{self.recent_call_data.cost_smoothness.std():.4f}')
         print(f'cost path length: {self.recent_call_data.cost_path_length.mean():.4f}, '
-                  f'{self.recent_call_data.cost_path_length.std():.4f}')
+              f'{self.recent_call_data.cost_path_length.std():.4f}')
         cost_best_free_traj = torch.min(self.recent_call_data.cost_all).item()
         print(f'cost best: {cost_best_free_traj:.3f}')
         # variance of waypoints

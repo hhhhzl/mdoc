@@ -12,7 +12,7 @@ from torch.autograd.functional import jacobian
 
 from torch_robotics.torch_kinematics_tree.geometrics.quaternion import q_to_rotation_matrix
 from torch_robotics.torch_kinematics_tree.geometrics.utils import transform_point, rotate_point
-from torch_robotics.torch_utils.torch_utils import DEFAULT_TENSOR_ARGS, to_torch, to_numpy, tensor_linspace_v1
+from torch_robotics.torch_utils.torch_utils import get_default_tensor_args, to_torch, to_numpy, tensor_linspace_v1
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 
 
@@ -25,7 +25,7 @@ class PrimitiveShapeField(ABC):
     def __init__(self, dim=3, tensor_args=None):
         self.dim = dim
         if tensor_args is None:
-            tensor_args = DEFAULT_TENSOR_ARGS
+            tensor_args = get_default_tensor_args()
         self.tensor_args = tensor_args
 
     def compute_signed_distance(self, x):
@@ -589,7 +589,7 @@ class ObjectField(PrimitiveShapeField):
 
 
 if __name__ == '__main__':
-    tensor_args = DEFAULT_TENSOR_ARGS
+    tensor_args = get_default_tensor_args()
     spheres = MultiSphereField(torch.zeros(2, **tensor_args).view(1, -1),
                                torch.ones(1, **tensor_args).view(1, -1) * 0.3,
                                tensor_args=tensor_args)

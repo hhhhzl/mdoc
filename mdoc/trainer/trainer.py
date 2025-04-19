@@ -13,7 +13,7 @@ from collections import defaultdict
 from tqdm.autonotebook import tqdm
 
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
-from torch_robotics.torch_utils.torch_utils import dict_to_device, DEFAULT_TENSOR_ARGS, to_numpy, get_torch_device
+from torch_robotics.torch_utils.torch_utils import dict_to_device, get_default_tensor_args, to_numpy, get_torch_device
 
 
 def get_num_epochs(num_train_steps, batch_size, dataset_len):
@@ -129,7 +129,7 @@ def train(model=None, train_dataloader=None, epochs=None, lr=None, steps_til_sum
           use_amp=False,
           early_stopper_patience=-1,
           debug=False,
-          tensor_args=DEFAULT_TENSOR_ARGS,
+          tensor_args=get_default_tensor_args(),
           **kwargs
           ):
 

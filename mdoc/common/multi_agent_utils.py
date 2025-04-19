@@ -26,14 +26,12 @@ import torch
 from typing import List
 from copy import deepcopy
 import numpy as np
-from torch_robotics.torch_utils.torch_utils import get_torch_device
-device = get_torch_device()
 # Project imports.
 
 
 def is_multi_agent_state_valid(reference_robot,
                                reference_task,
-                               state_pos_l: List[torch.Tensor]
+                               state_pos_l: List[torch.Tensor],
                                ) -> bool:
     """
     Check if a state is valid.
@@ -145,7 +143,7 @@ def global_pad_paths(path_l: List[torch.Tensor],
     return path_l
 
 
-def get_start_goal_pos_circle(num_agents: int, radius=0.8):
+def get_start_goal_pos_circle(device, num_agents: int, radius=0.8):
     # These are all in the local tile frame.
     start_l = [torch.tensor([radius * np.cos(2 * torch.pi * i / num_agents),
                              radius * np.sin(2 * torch.pi * i / num_agents)],
@@ -156,7 +154,7 @@ def get_start_goal_pos_circle(num_agents: int, radius=0.8):
     return start_l, goal_l
 
 
-def get_start_goal_pos_boundary(num_agents: int, dist=0.87):
+def get_start_goal_pos_boundary(device, num_agents: int, dist=0.87):
     # These are all in the local tile frame.
     start_l = [torch.tensor([0.8 * np.cos(2 * torch.pi * i / num_agents),
                              0.8 * np.sin(2 * torch.pi * i / num_agents)],
@@ -175,7 +173,7 @@ def get_start_goal_pos_boundary(num_agents: int, dist=0.87):
     return start_l, goal_l
 
 
-def get_state_pos_column(num_agents: int, x_pos: float):
+def get_state_pos_column(device, num_agents: int, x_pos: float):
     # These are all in the local tile frame.
     state_l = [torch.tensor([x_pos, 0.8 * (1 - 2 * i / num_agents)],
                             dtype=torch.float32, device=device) for i in range(num_agents)]
