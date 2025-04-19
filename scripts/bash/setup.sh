@@ -9,6 +9,6 @@ cd ../experiment_launcher
 pip install -e .
 cd ../motion_planning_baselines
 pip install -e .
-cd ../..
+cd ../../
 
 pip install --upgrade --no-cache-dir gdown
