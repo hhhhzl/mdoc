@@ -43,7 +43,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # Arguments for the high/low level planner.
     # ============================
     low_level_planner_model_args = {
-        'planner_alg': 'mdoc',
+        'planner_alg': 'mmd',
         'use_guide_on_extra_objects_only': params.use_guide_on_extra_objects_only,
         'n_samples': params.n_samples,
         'n_local_inference_noising_steps': params.n_local_inference_noising_steps,
@@ -326,12 +326,12 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
 
 if __name__ == '__main__':
     test_config_single_tile = MultiAgentPlanningSingleTrialConfig()
-    test_config_single_tile.num_agents = 3
+    test_config_single_tile.num_agents = 4
     test_config_single_tile.instance_name = "test"
-    test_config_single_tile.multi_agent_planner_class = "XECBS"  # Or "ECBS" or "XCBS" or "CBS" or "PP".
-    test_config_single_tile.single_agent_planner_class = "MDOCEnsemble"  # Or "MPD"
+    test_config_single_tile.multi_agent_planner_class = "CBS"  # Or "ECBS" or "XCBS" or "CBS" or "PP".
+    test_config_single_tile.single_agent_planner_class = "MPDEnsemble"  # Or "MPD"
     test_config_single_tile.stagger_start_time_dt = 0
-    test_config_single_tile.runtime_limit = 60 * 3  # 3 minutes.
+    test_config_single_tile.runtime_limit = 60 * 10  # 3 minutes.
     test_config_single_tile.time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     test_config_single_tile.render_animation = True  # Change the `densify_trajs` call above to create nicer animations.
 

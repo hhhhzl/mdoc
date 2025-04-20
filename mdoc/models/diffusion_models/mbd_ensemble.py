@@ -62,8 +62,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             'n_samples': mparams.n_samples,
             'n_diffusion_step': 100,
             'horizon': mparams.horizon,
-            'beta0': 1e-4,
-            'betaT': 0.02
+            'beta0': 1e-5,
+            'betaT': 0.01
         }
 
         self.recommended_params = {
@@ -139,28 +139,34 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         eps_u = torch.randn((model_params['params']['n_samples'], model_params['params']['horizon'], self.robot.q_dim * 2), device=self.device)
         traj_0s = eps_u * model_params['sigmas'][i] + traj_bars_i
         traj_0s = torch.clamp(traj_0s, -1.0, 1.0)
+        # traj_0s[..., :self.robot.q_dim] = traj_0s[..., :self.robot.q_dim].clamp(-1, 1)
 
         # evaluate samples
-        sample_costs = []
-        qs = []
-        for j in tqdm(range(model_params['params']['n_samples']), desc=f"MC Sampling"):
-            actions = self.robot.get_velocity(traj_0s)[j].cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_0s)[j].numpy()
-            costs, q = self._rollout_us(model_id, self.state_inits, actions)
-            traj_0s[..., :self.robot.q_dim] = torch.stack(q).squeeze(1)[..., :self.robot.q_dim]
-            sample_costs.append(costs)
-            qs.append(q)
+        # for j in range(model_params['params']['n_samples']):
+        #     actions = self.robot.get_velocity(traj_0s)[j].cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_0s)[j].numpy()
+        #     costs, q = self._rollout_us(model_id, self.state_inits, actions)
+        #     traj_0s[..., :self.robot.q_dim] = torch.stack(q).squeeze(1)[..., :self.robot.q_dim]
+        #     sample_costs.append(costs)
+        #     qs.append(q)
 
-        costs = torch.tensor(np.mean(sample_costs, axis=-1), device=self.device)
-        cost_std = costs.std()
+        # sample_costs = []
+        qs = []
+        actions = traj_0s[..., self.robot.q_dim:]
+        costs, q_seq = self._rollout_us_batch(model_id, self.state_inits, actions)
+        traj_0s[..., :self.robot.q_dim] = q_seq
         cost_mean = costs.mean()
-        cost_std = torch.where(cost_std < 1e-4, torch.tensor(1.0, device=self.device), cost_std)
-        logp0 = (costs - cost_mean) / cost_std / model_params['params']['temp_sample']
+        cost_std = costs.std().clamp(min=1e-4)
+        # costs = torch.tensor(np.mean(sample_costs, axis=-1), device=self.device)
+        # cost_std = costs.std()
+        # cost_mean = costs.mean()
+        # cost_std = torch.where(cost_std < 1e-4, torch.tensor(1.0, device=self.device), cost_std)
+        logp0 = -(costs - cost_mean) / cost_std / model_params['params']['temp_sample']
 
         # use demonstration data
         if self.enable_demo:
             xref_logpds = torch.tensor([env_model.eval_xref_logpd(q) for q in qs], device=self.device)
             xref_logpds = xref_logpds - xref_logpds.max()
-            logpdemo = (xref_logpds + env_model.rew_xref - cost_mean) / cost_std / model_params['params']['temp_sample']
+            logpdemo = -(xref_logpds + env_model.rew_xref - cost_mean) / cost_std / model_params['params']['temp_sample']
             demo_mask = logpdemo > logp0
             logp0 = torch.where(demo_mask, logpdemo, logp0)
             logp0 = (logp0 - logp0.mean()) / logp0.std() / model_params['params']['temp_sample']
@@ -170,8 +176,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         traj_bar = torch.einsum("n,nij->ij", weights, traj_0s)
 
         # calculate score function
-        score = 1 / (1.0 - model_params['alphas_bar'][i]) * (
-                - traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
+        score = 1 / (1.0 - model_params['alphas_bar'][i]) * (- traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
         traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) * (traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(model_params['alphas_bar'][i - 1])
         return traj_i_m1, costs.mean().item()
 
@@ -185,6 +190,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             rews: Tensor of rewards shape [T]
             pipeline_states: List of pipeline states
         """
+        # us = torch.ones_like(us) * torch.tensor([0.1, 0.0], device=self.device)
         env_model = self.env_models[model_id]
         costs = []
         pipeline_states = []
@@ -193,7 +199,9 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         for u in us:
             state = self.robot.step(state, torch.from_numpy(u), env_model)
-            costs.append(state.cost)
+            pos_error = torch.norm(self.goal_state_pos - state.q)
+            costs.append(state.collision_cost + state.control_cost + 10.0 * pos_error)
+            # costs.append(state.cost)
             pipeline_states.append(state.pipeline_state)
 
         if torch.is_tensor(costs[0]):
@@ -202,6 +210,35 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             costs = torch.tensor(costs)
 
         return costs, pipeline_states
+
+    def _rollout_us_batch(self, model_id, state_init, us):
+        """
+        Args
+        ----
+        us : (B, H, 2)  ‑‑
+        Returns
+        -------
+        cost   : (B,)
+        q_seq  : (B, H, 2)
+        """
+        env = self.env_models[model_id]
+        B, H, _ = us.shape
+        dt = self.robot.dt
+
+        dq = us * dt  # (B,H,2)
+        q0 = state_init.q.unsqueeze(0)  # (1,2)
+        q_seq = torch.cumsum(dq, dim=1) + q0  # (B,H,2)
+
+        pos_err = (self.goal_state_pos - q_seq).norm(dim=2)  # (B,H)
+        ctrl = (us * us).sum(dim=2)  # (B,H)
+        cost = ctrl + 10.0 * pos_err  # (B,H)
+
+        if env is not None:
+            sdf = env.compute_sdf(q_seq.view(-1, self.robot.q_dim)).view(B, H)
+            pen = (-sdf).clamp(min=0)
+            cost += 10.0 * pen
+
+        return cost.sum(dim=1), q_seq
 
     @torch.no_grad()
     def run_inference(
@@ -241,7 +278,6 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         chains = {}
         for model_id in self.models.keys():
             traj_n = torch.zeros((n_samples, self.models[model_id]['params']['horizon'], self.robot.q_dim * 2), device=self.device)
-
             # Reverse
             traj_i = traj_n
             model_chain = []
@@ -257,10 +293,11 @@ class ModelBasedDiffusionEnsemble(nn.Module):
                 chains[model_id] = torch.stack(model_chain)
 
             # evaluate final cost
-            final_actions = self.robot.get_velocity(traj_i).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
-            costs_final, _ = self._rollout_us(model_id, self.state_inits, final_actions)
+            final_traj = chains[model_id][-1, ...]
+            final_actions = self.robot.get_velocity(final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
+            costs_final, q = self._rollout_us(model_id, self.state_inits, final_actions)
             results[model_id] = {
-                'trajectory': traj_i,
+                'trajectory': final_traj,
                 'cost': costs_final.mean().item(),
                 'cost_history': costs
             }
