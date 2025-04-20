@@ -187,8 +187,7 @@ class RobotPlanarDisk(RobotBase):
         return collisions, collision_points
 
     def _dynamics(self, q, u):  # position, velocity, accelation
-        new_q_dot = u
-        new_q = q + new_q_dot * self.dt
+        new_q = q + u * self.dt
         return new_q
 
     def step(self, state: RobotState, u: torch.Tensor, env=None, prior=None) -> RobotState:
