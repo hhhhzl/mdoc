@@ -5,7 +5,6 @@ MIT License
 
 import os
 from datetime import datetime
-import argparse
 import time
 import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
@@ -23,14 +22,9 @@ from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
 from mdoc.common import get_start_goal_pos_circle
 from mdoc.common.pretty_print import *
+from mdoc.config.mdoc_params import MDOCParams as params
 from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
     get_result_dir_from_trial_config, TrialSuccessStatus
-
-from scripts import (
-    MultiAgentPlannerType,
-    EnvironmentType,
-    LowerPlannerMethodType
-)
 
 
 allow_ops_in_compiled_graph()
@@ -48,15 +42,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # ============================
     # Arguments for the high/low level planner.
     # ============================
-    if test_config.single_agent_planner_class in ['MDOCEnsemble']:
-        from mdoc.config.mdoc_params import MDOCParams as params
-        planner_alg = 'mdoc'
-    else:
-        from mdoc.config.mmd_params import MMDParams as params
-        planner_alg = 'mmd'
-
     low_level_planner_model_args = {
-        'planner_alg': planner_alg,
+        'planner_alg': 'mdoc',
         'use_guide_on_extra_objects_only': params.use_guide_on_extra_objects_only,
         'n_samples': params.n_samples,
         'n_local_inference_noising_steps': params.n_local_inference_noising_steps,
@@ -64,6 +51,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'start_guide_steps_fraction': params.start_guide_steps_fraction,
         'n_guide_steps': params.n_guide_steps,
         'n_diffusion_steps_without_noise': params.n_diffusion_steps_without_noise,
+        'n_diffusion_steps': params.n_diffusion_steps,
         'weight_grad_cost_collision': params.weight_grad_cost_collision,
         'weight_grad_cost_smoothness': params.weight_grad_cost_smoothness,
         'weight_grad_cost_constraints': params.weight_grad_cost_constraints,
@@ -76,9 +64,6 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'results_dir': params.results_dir,
         'trained_models_dir': None,
     }
-    if test_config.single_agent_planner_class in ['MDOCEnsemble']:
-        low_level_planner_model_args['n_diffusion_steps'] = params.n_diffusion_steps
-
     high_level_planner_model_args = {
         'is_xcbs': True if test_config.multi_agent_planner_class in ["XECBS", "XCBS"] else False,
         'is_ecbs': True if test_config.multi_agent_planner_class in ["ECBS", "XECBS"] else False,
@@ -337,170 +322,61 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
                                  output_fpath=os.path.join(results_dir, f'{exp_name}.gif'),
                                  plot_trajs=True,
                                  animation_duration=10)
-def parse_args():
-    parser = argparse.ArgumentParser(description='Multi-agent planning configuration')
-
-    # General arguments
-    parser.add_argument(
-        '--example_type',
-        type=str,
-        default='single_tile',
-        choices=['single_tile', 'multi_tile'],
-        help='Type of example to run'
-    )
-    parser.add_argument(
-        '--n',
-        type=int,
-        default=3,
-        help='Number of agents'
-    )
-    parser.add_argument(
-        '--instance_name',
-        type=str,
-        default='test',
-        help='Name of the instance'
-    )
-    parser.add_argument(
-        '--hp',
-        type=str,
-        default='CBS',
-        choices=[
-            'CBS',
-            'ECBS',
-            'XCBS',
-            'PP',
-            'XECBS'
-        ],
-        help='Multi-agent planner class'
-    )
-    parser.add_argument(
-        '--lp',
-        type=str,
-        default='MDOCEnsemble',
-        choices=[
-            'MDOCEnsemble',
-            'MPDEnsemble',
-            'MPD'
-        ],
-        help='Single agent planner class'
-    )
-    parser.add_argument(
-        '--st',
-        type=float,
-        default=0,
-        help='Stagger start time delta'
-    )
-    parser.add_argument(
-        '--rl',
-        type=float,
-        default=60,
-        help='Runtime limit in seconds'
-    )
-    parser.add_argument(
-        '--ra',
-        action='store_true',
-        help='Render animation'
-    )
-
-    # Single tile arguments
-    parser.add_argument(
-        '--e',
-        type=str,
-        default='EnvEmptyNoWait2D-RobotPlanarDisk',
-        choices=[
-            'EnvEmpty2D-RobotPlanarDisk',
-            'EnvEmptyNoWait2D-RobotPlanarDisk',
-            'EnvConveyor2D-RobotPlanarDisk',
-            'EnvHighways2D-RobotPlanarDisk',
-            'EnvDropRegion2D-RobotPlanarDisk'
-        ],
-        help='Global model ID for single tile')
-
-    # Multi tile arguments
-    parser.add_argument(
-        '--me',
-        nargs='+',
-        default=[
-            'EnvEmptyNoWait2D-RobotPlanarDisk',
-        ],
-        help='Global model IDs for multi-tile'
-    )
-    parser.add_argument(
-        '--agent_skeletons',
-        nargs='+',
-        type=int,
-        action='append',
-        help='Agent skeletons for multi-tile (provide as multiple [[x1,y1],[x2,y2]] groups)'
-    )
-    parser.add_argument(
-        '--start_positions',
-        nargs='+',
-        type=float,
-        action='append',
-        help='Start positions for multi-tile (provide as multiple [x,y] pairs)'
-    )
-    parser.add_argument(
-        '--goal_positions',
-        nargs='+',
-        type=float,
-        action='append',
-        help='Goal positions for multi-tile (provide as multiple [x,y] pairs)'
-    )
-
-    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    args = parse_args()
+    test_config_single_tile = MultiAgentPlanningSingleTrialConfig()
+    test_config_single_tile.num_agents = 10
+    test_config_single_tile.instance_name = "test"
+    test_config_single_tile.multi_agent_planner_class = "CBS"  # Or "ECBS" or "XCBS" or "CBS" or "PP".
+    test_config_single_tile.single_agent_planner_class = "MDOCEnsemble"  # Or "MPD"
+    test_config_single_tile.stagger_start_time_dt = 0
+    test_config_single_tile.runtime_limit = 60 * 10  # 3 minutes.
+    test_config_single_tile.time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    test_config_single_tile.render_animation = True  # Change the `densify_trajs` call above to create nicer animations.
 
-    # Create config object (assuming MultiAgentPlanningSingleTrialConfig exists)
-    config = MultiAgentPlanningSingleTrialConfig()
-    config.num_agents = args.n
-    config.instance_name = args.instance_name
-    config.multi_agent_planner_class = args.hp
-    config.single_agent_planner_class = args.lp
-    config.stagger_start_time_dt = args.st
-    config.runtime_limit = args.rl
-    config.time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    config.render_animation = args.ra
+    example_type = "single_tile"
+    # example_type = "multi_tile"
+    # ============================
+    # Single tile.
+    # ============================
+    if example_type == "single_tile":
+        # Choose the model to use. A model is for a map/robot combination.
+        # test_config_single_tile.global_model_ids = [['EnvEmpty2D-RobotPlanarDisk']]
+        test_config_single_tile.global_model_ids = [['EnvEmptyNoWait2D-RobotPlanarDisk']]
+        # test_config_single_tile.global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
+        # test_config_single_tile.global_model_ids = [['EnvHighways2D-RobotPlanarDisk']]
+        # test_config_single_tile.global_model_ids = [['EnvDropRegion2D-RobotPlanarDisk']]
 
-    if args.example_type == "single_tile":
-        config.global_model_ids = [args.me]
-
-        # Set up starts and goals
-        config.agent_skeleton_l = [[[0, 0]]] * config.num_agents
+        # Choose starts and goals.
+        test_config_single_tile.agent_skeleton_l = [[[0, 0]]] * test_config_single_tile.num_agents
         torch.random.manual_seed(10)
-        config.start_state_pos_l, config.goal_state_pos_l = \
-            get_start_goal_pos_circle(device, config.num_agents, 0.8)
+        test_config_single_tile.start_state_pos_l, test_config_single_tile.goal_state_pos_l = \
+        get_start_goal_pos_circle(device, test_config_single_tile.num_agents, 0.8)
+        print("Starts:", test_config_single_tile.start_state_pos_l)
+        print("Goals:", test_config_single_tile.goal_state_pos_l)
 
-        print("Starts:", config.start_state_pos_l)
-        print("Goals:", config.goal_state_pos_l)
-
-        run_multi_agent_trial(config)
+        run_multi_agent_trial(test_config_single_tile)
         print(GREEN, 'OK.', RESET)
 
-    elif args.example_type == "multi_tile":
-        config.num_agents = args.n if args.n != 6 else 4  # Default to 4 for multi-tile
-        config.stagger_start_time_dt = args.st if args.st != 0 else 5
-        config.global_model_ids = [args.me]
+    # ============================
+    # Multiple tiles example.
+    # ============================
+    if example_type == "multi_tile":
+        test_config_multiple_tiles = test_config_single_tile
+        test_config_multiple_tiles.num_agents = 4
+        test_config_multiple_tiles.stagger_start_time_dt = 5
+        test_config_multiple_tiles.global_model_ids = \
+            [['EnvEmptyNoWait2D-RobotPlanarDisk', 'EnvEmptyNoWait2D-RobotPlanarDisk']]
 
-        if args.agent_skeletons:
-            config.agent_skeleton_l = args.agent_skeletons
-        else:
-            config.agent_skeleton_l = [[[0, 0], [0, 1]],
-                                       [[0, 1], [0, 0]],
-                                       [[0, 0], [0, 1]],
-                                       [[0, 1], [0, 0]]]
-
-        if args.start_positions and args.goal_positions:
-            config.start_state_pos_l = torch.tensor(args.start_positions, **tensor_args)
-            config.goal_state_pos_l = torch.tensor(args.goal_positions, **tensor_args)
-        else:
-            config.start_state_pos_l, config.goal_state_pos_l = \
-                (torch.tensor([[0, 0.8], [0, 0.3], [0, -0.3], [0, -0.8]], **tensor_args),
-                 torch.tensor([[0, -0.8], [0, -0.3], [0, 0.3], [0, 0.8]], **tensor_args))
-
-        config.multi_agent_planner_class = "XECBS" if args.multi_agent_planner == "CBS" else args.multi_agent_planner
-        print(config.start_state_pos_l)
-        run_multi_agent_trial(config)
+        test_config_multiple_tiles.agent_skeleton_l = [[[0, 0], [0, 1]],
+                                                       [[0, 1], [0, 0]],
+                                                       [[0, 0], [0, 1]],
+                                                       [[0, 1], [0, 0]]]
+        test_config_multiple_tiles.start_state_pos_l, test_config_multiple_tiles.goal_state_pos_l = \
+            (torch.tensor([[0, 0.8], [0, 0.3], [0, -0.3], [0, -0.8]], **tensor_args),
+             torch.tensor([[0, -0.8], [0, -0.3], [0, 0.3], [0, 0.8]], **tensor_args))
+        print(test_config_multiple_tiles.start_state_pos_l)
+        test_config_multiple_tiles.multi_agent_planner_class = "XECBS"
+        run_multi_agent_trial(test_config_multiple_tiles)
         print(GREEN, 'OK.', RESET)
