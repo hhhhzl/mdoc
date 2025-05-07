@@ -158,19 +158,31 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             device=traj_i.device
         )
         if len(self.soft_constraints[model_id]) > 0:
-            for constraint in self.soft_constraints[model_id]:
-                # calculate the grad to center
-                c = constraint.qs[0].to(traj_i.device).view(1, 1, -1)  # [1, 1, q_dim]
-                radius = torch.tensor(constraint.radii[0], device=traj_i.device)
-                lambda_c = torch.tensor(0.001, device=traj_i.device)  #
+            constraint_centers = torch.stack(
+                [constraint.qs[0] for constraint in self.soft_constraints[model_id]])  # [N_constraints, q_dim]
+            constraint_radii = torch.tensor([constraint.radii[0] for constraint in self.soft_constraints[model_id]],
+                                            device=traj_i.device)  # [N_constraints]
+            lambda_c = torch.tensor(0.001, device=traj_i.device)
 
-                diff = traj_i[..., :self.robot.q_dim] - c
-                distances = torch.norm(diff, dim=-1, keepdim=True)  # [B, H, 1]
-                violations = torch.relu(radius - distances.squeeze(-1))  # [B, H]
+            # Reshape for proper broadcasting
+            constraint_centers = constraint_centers.view(1, 1, -1, self.robot.q_dim)  # [1, 1, N_constraints, q_dim]
+            constraint_radii = constraint_radii.view(1, 1, -1)  # [1, 1, N_constraints]
 
-                grad = -diff / (distances + 1e-6)  # [B, H, q_dim]
-                grad *= (violations > 0).unsqueeze(-1)  # [B, H, 1] -> [B, H, q_dim]
-                soft_constraint_grad += grad.sum(dim=1, keepdim=True) / lambda_c  # [B, q_dim]
+            # Calculate differences and distances
+            traj_pos = traj_i[..., :self.robot.q_dim].unsqueeze(2)  # [B, H, 1, q_dim]
+            diff = traj_pos - constraint_centers  # [B, H, N_constraints, q_dim]
+            distances = torch.norm(diff, dim=-1, keepdim=True)  # [B, H, N_constraints, 1]
+
+            # Compute violations mask
+            violations = torch.relu(constraint_radii - distances.squeeze(-1))  # [B, H, N_constraints]
+            mask = (violations > 0).unsqueeze(-1)  # [B, H, N_constraints, 1]
+
+            # Compute and apply gradient
+            grad = -diff / (distances + 1e-6)  # [B, H, N_constraints, q_dim]
+            grad = grad * mask  # [B, H, N_constraints, q_dim]
+
+            # Sum across constraints and time steps
+            soft_constraint_grad = grad.sum(dim=(1, 2)) / lambda_c  # [B, q_dim]
 
         # use demonstration data
         if self.enable_demo:
