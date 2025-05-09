@@ -399,6 +399,7 @@ def parse_args():
     parser.add_argument(
         '--ra',
         action='store_true',
+        default=True,
         help='Render animation'
     )
 
