@@ -468,16 +468,17 @@ class MDOCEnsemble(SingleAgentPlanner):
         # Add these cost factors, alongside their weights as specified, to the `guide` object of the model.
         # Here we add specific constraints to each model. We may need to break down constraints
         # that span multiple models.
-        task_id_to_cost_constraints_l = self.split_cost_constraints_to_tasks(cost_constraints_l)
-
-        for task_id, cost_constraints_l in task_id_to_cost_constraints_l.items():
-            for cost_constraint in cost_constraints_l:
-                cost_constraint.traj_ranges -= task_id * self.n_support_points
-                cost_constraint.qs -= self.transforms[task_id]  # TODO(yorai): check this.
-                self.guides[task_id].add_extra_costs([cost_constraint],
-                                                     [self.weight_grad_cost_constraints
-                                                      if not cost_constraint.is_soft else
-                                                      self.weight_grad_cost_soft_constraints])
+        # task_id_to_cost_constraints_l = self.split_cost_constraints_to_tasks(cost_constraints_l)
+        # soft_constraints = []
+        # for task_id, cost_constraints_l in task_id_to_cost_constraints_l.items():
+        #     for cost_constraint in cost_constraints_l:
+        #         cost_constraint.traj_ranges -= task_id * self.n_support_points
+        #         cost_constraint.qs -= self.transforms[task_id]  # TODO(yorai): check this.
+        #         self.guides[task_id].add_extra_costs([cost_constraint],
+        #                                              [self.weight_grad_cost_constraints
+        #                                               if not cost_constraint.is_soft else
+        #                                               self.weight_grad_cost_soft_constraints])
+        #         soft_constraints.append(cost_constraint)
 
         # Sample trajectories with the diffusion/cvae model
         with TimerCUDA() as timer_model_sampling:
@@ -491,6 +492,7 @@ class MDOCEnsemble(SingleAgentPlanner):
                 sample_fn=ddpm_sample_fn,
                 sample_kwargs=self.sample_kwargs,
                 n_diffusion_steps_without_noise=self.n_diffusion_steps_without_noise,
+                soft_constraints=cost_constraints_l
             )
         t_model_sampling = timer_model_sampling.elapsed
         print(f't_model_sampling: {t_model_sampling:.3f} sec')
@@ -522,8 +524,8 @@ class MDOCEnsemble(SingleAgentPlanner):
             print(f't_post_diffusion_guide: {t_post_diffusion_guide:.3f} sec')
 
         # Remove the extra cost.
-        for task_id in task_id_to_cost_constraints_l:
-            self.guides[task_id].reset_extra_costs()
+        # for task_id in task_id_to_cost_constraints_l:
+        #     self.guides[task_id].reset_extra_costs()
         # self.guide.reset_extra_costs()
 
         return trajs_normalized_iters_dict, t_model_sampling, t_post_diffusion_guide
