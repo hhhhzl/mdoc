@@ -19,7 +19,8 @@ class MDOCParams:
     weight_grad_cost_collision = 2e-2
     weight_grad_cost_smoothness = 8e-2
     weight_grad_cost_constraints = 2e-1
-    weight_grad_cost_soft_constraints = 2e-2
+    weight_grad_cost_soft_constraints = 1e-4
+    grad_step = 1e-6
     factor_num_interpolated_points_for_collision = 1.5
     trajectory_duration = 5.0
     device = 'cpu'
