@@ -76,9 +76,12 @@ class PlanningTaskEnsemble(TaskEnsemble):
     def random_coll_free_q(self, task_id: int, n_samples=1, max_samples=1000, max_tries=1000):
         return self.tasks[task_id].random_coll_free_q(n_samples, max_samples, max_tries)
 
-    def get_traj_unnormalized(self, task_id: int,
-                              datasets,
-                              traj_normalized):
+    def get_traj_unnormalized(
+            self,
+            task_id: int,
+            datasets,
+            traj_normalized
+    ):
         trajs_iters = datasets[task_id].unnormalize_trajectories(traj_normalized)
         trajs_final = trajs_iters[-1]
         trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs, _ = \
@@ -186,10 +189,9 @@ class PlanningTaskEnsemble(TaskEnsemble):
 
         results['trajs_final_coll_idxs'] = coll_ids.long()
         results['trajs_final_free_idxs'] = free_ids.long()
-        results['trajs_final_coll'] = trajs_final[:, results['trajs_final_coll_idxs'], ...] \
-            if len(coll_ids) > 0 else torch.tensor([], **self.tensor_args)
-        results['trajs_final_free'] = trajs_final[results['trajs_final_free_idxs'], :, ...] \
-            if len(free_ids) > 0 else torch.tensor([], **self.tensor_args)
+
+        results['trajs_final_coll'] = trajs_final[:, results['trajs_final_coll_idxs'], ...] if len(coll_ids) > 0 else torch.tensor([], **self.tensor_args)
+        results['trajs_final_free'] = trajs_final[results['trajs_final_free_idxs'], :, ...] if len(free_ids) > 0 else torch.tensor([], **self.tensor_args)
         results['success_free_trajs'] = 1 if len(free_ids) > 0 else 0
         results['fraction_free_trajs'] = len(free_ids) / results['trajs_iters'].shape[1]
         results['collision_intensity_trajs'] = 1 - results['fraction_free_trajs']

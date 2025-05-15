@@ -407,7 +407,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmptyNoWait2D-RobotPlanarDisk',
+        default='EnvConveyor2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -466,7 +466,7 @@ if __name__ == '__main__':
     config.render_animation = args.ra
 
     if args.example_type == "single_tile":
-        config.global_model_ids = [args.me]
+        config.global_model_ids = [[args.e]]
 
         # Set up starts and goals
         config.agent_skeleton_l = [[[0, 0]]] * config.num_agents
