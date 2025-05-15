@@ -67,7 +67,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         }
 
         self.recommended_params = {
-            "temp_sample": 0.1,
+            "temp_sample": 0.5,
             "n_diffusion_step": 100,
             'n_samples': 64,
             "horizon": 64
@@ -126,32 +126,60 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         }
 
     @torch.no_grad()
-    def _reverse_diffusion_step(self, model_id: int, i: int, traj_bars_i: torch.Tensor):
+    def _reverse_diffusion_step(
+            self,
+            model_id: int,
+            i: int,
+            traj_bars_i: torch.Tensor,
+            max_resample: int = 5,
+            free_ratio_target: float = 0.30,
+            lambda_obs: float = 75.0
+    ):
         """
         Reverse process for single model
         """
         model_params = self.models[model_id]
         env_model = self.env_models[model_id]
 
-        # recover the trajectory
-        traj_i = traj_bars_i * torch.sqrt(model_params['alphas_bar'][i])
+        sigma_i = model_params['sigmas'][i].item()
+        temp_step = np.interp(sigma_i, [model_params['sigmas'][-1].item(), model_params['sigmas'][0].item()], [model_params['params']['temp_sample'] * 0.5, model_params['params']['temp_sample']])
+        n_samples = model_params['params']['n_samples']
+        attempt = 0
 
-        #  Monte Carlo Sample from q_i
-        # velocity
-        eps_u = torch.randn(
-            (model_params['params']['n_samples'], model_params['params']['horizon'], self.robot.q_dim * 2),
-            device=self.device)
-        traj_0s = eps_u * model_params['sigmas'][i] + traj_bars_i
-        traj_0s = torch.clamp(traj_0s, -1.0, 1.0)
+        while attempt < max_resample:
+            # recover the trajectory
+            if traj_bars_i.shape[0] != n_samples:
+                traj_bars_i = traj_bars_i[:1].repeat(n_samples, 1, 1)
+            traj_i = traj_bars_i.clone()
+            # traj_i = traj_bars_i * torch.sqrt(model_params['alphas_bar'][i])
 
-        # evaluate samples
-        qs = []
-        actions = traj_0s[..., self.robot.q_dim:]
-        costs, q_seq, free_mask = self._rollout_us_batch(model_id, self.state_inits, actions)
-        traj_0s[..., :self.robot.q_dim] = q_seq
+            #  Monte Carlo Sample from q_i
+            # velocity
+            eps_u = torch.randn((n_samples, model_params['params']['horizon'], self.robot.q_dim * 2), device=self.device)
+            traj_0s = torch.clamp(eps_u * model_params['sigmas'][i] + traj_bars_i, -1.0, 1.0)
+
+            # evaluate samples
+            qs = []
+            actions = traj_0s[..., self.robot.q_dim:]
+            costs, q_seq, free_mask = self._rollout_us_batch(model_id, self.state_inits, actions)
+            traj_0s[..., :self.robot.q_dim] = q_seq
+
+            free_ratio = free_mask.float().mean().item()
+            print(f"step {i:03d} | σ={sigma_i:.4f} | free={free_ratio:.2f} | "f"samples={n_samples}")
+
+            if free_ratio >= free_ratio_target or n_samples >= 8192:
+                break
+
+            n_samples *= 1
+            attempt += 1
+
+        if not free_mask.any():
+            raise RuntimeError(f"No collision-free sample after {attempt} resamples")
+
         cost_mean = costs.mean()
         cost_std = costs.std().clamp(min=1e-4)
-        logp0 = -(costs - cost_mean) / cost_std / model_params['params']['temp_sample']
+        logp0 = -(costs - cost_mean) / cost_std / temp_step
+        logp0[~free_mask] = -torch.inf
 
         soft_constraint_grad = torch.zeros(
             traj_i.shape[0], traj_i.shape[1], self.robot.q_dim,  # [B, H, q_dim]
@@ -162,7 +190,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
                 [constraint.qs[0] for constraint in self.soft_constraints[model_id]])  # [N_constraints, q_dim]
             constraint_radii = torch.tensor([constraint.radii[0] for constraint in self.soft_constraints[model_id]],
                                             device=traj_i.device)  # [N_constraints]
-            lambda_c = torch.tensor(0.0001, device=traj_i.device)
+            lambda_c = torch.tensor(0.00001, device=traj_i.device)
 
             # Reshape for proper broadcasting
             constraint_centers = constraint_centers.view(1, 1, -1, self.robot.q_dim)  # [1, 1, N_constraints, q_dim]
@@ -206,8 +234,23 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         expanded_grad[..., :self.robot.q_dim] = soft_constraint_grad
         score += expanded_grad  # add soft constraints
 
+        if (env_model is not None) and hasattr(env_model, "compute_sdf_grad"):
+            q_ws = q_seq  # (B,H,2)
+            sdf_g = env_model.compute_sdf_grad(q_ws.reshape(-1, 2)).view(n_samples, model_params['params']['horizon'], 2)
+            sdf_g = sdf_g.mean(dim=0)  # (H,2)
+            score[..., :self.robot.q_dim] += lambda_obs * sdf_g
+
         traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) * (traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(model_params['alphas_bar'][i - 1])
-        return traj_i_m1, costs.mean().item()
+
+        best_idx = torch.where(free_mask)[0][costs[free_mask].argmin()]
+        best_traj_sample = traj_0s[best_idx]
+
+        if self.transforms is not None and model_id in self.transforms:
+            best_traj_sample[..., :self.robot.q_dim] += self.transforms[model_id]
+
+        # return traj_i_m1, best_traj_sample, costs[best_idx].item()
+        # return traj_i_m1, costs[free_mask].mean().item()
+        return traj_i_m1, best_traj_sample, costs.mean().item()
 
     def _rollout_us(self, model_id: int, state: torch.tensor, us: torch.tensor):
         """
@@ -271,7 +314,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         pos_err = (self.goal_state_pos - q_seq).norm(dim=2)  # (B,H)
         ctrl = (us * us).sum(dim=2)  # (B,H)
-        cost = ctrl + 2.0 * pos_err  # (B,H)
+        cost = ctrl + 7.0 * pos_err  # (B,H)
 
         # if self.soft_constraint[model_id]:
         #     for constraint in self.soft_constraint[model_id]:
@@ -286,21 +329,15 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if env is not None:
             q_ws = q_seq  # default : already global
             if self.transforms is not None and model_id in self.transforms:
-                print("here")
                 offset = self.transforms[model_id].to(q_seq.device)  # (2,)
                 q_ws = q_seq + offset.view(1, 1, -1)  # broadcast to (B,H,2)
 
             sdf = env.compute_sdf(q_ws.reshape(-1, self.robot.q_dim)  # (B·H,2)
                                   ).view(B, H)  # (B,H)
 
-            # EPS_CLEAR = 1e-2
-            # clearance = sdf - EPS_CLEAR
-            # pen = (-clearance).clamp(min=0.0)
-            # cost = cost + 20.0 * pen.pow(2)
-            # free_mask = (sdf.min(dim=1).values > -EPS_CLEAR)
-            pen = (-sdf).clamp(min=0.0)
-            free_mask = (pen.sum(dim=1) == 0)
-            cost = cost + 10.0 * pen
+            pen = (-sdf).clamp(min=0)
+            cost += 5000 * pen.pow(2)
+            free_mask = (sdf.min(dim=1).values >= 0)
         else:
             free_mask = torch.ones(B, dtype=torch.bool, device=us.device)
 
@@ -353,26 +390,36 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             model_chain = []
             costs = []
 
+            best_traj = None
+            best_cost = float('inf')
+
             for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, 0, -1),
                           desc=f"Diffusing model {model_id}"):
-                traj_i, cost = self._reverse_diffusion_step(model_id, i, traj_i)
+                traj_i, sample_i, cost_i = self._reverse_diffusion_step(model_id, i, traj_i)
                 if return_chain:
                     model_chain.append(traj_i)
-                costs.append(cost)
+                costs.append(cost_i)
+                if cost_i < best_cost:
+                    best_cost, best_traj = cost_i, sample_i
 
             if return_chain:
                 chains[model_id] = torch.stack(model_chain)
 
             # evaluate final cost
             final_traj = chains[model_id][-1, ...]
-            final_actions = self.robot.get_velocity(
-                final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
+            # final_traj = best_traj
+            final_actions = self.robot.get_velocity(final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
             costs_final, q = self._rollout_us(model_id, self.state_inits, final_actions)
             results[model_id] = {
                 'trajectory': final_traj,
                 'cost': costs_final.mean().item(),
                 'cost_history': costs
             }
+
+            sdf_final = self.env_models[model_id].compute_sdf(final_traj[..., :self.robot.q_dim])
+            penetration = (-sdf_final).clip(min=0)
+            success = (penetration.max() == 0)
+            print("success from mbd: ", success)
 
         if return_chain:
             return chains

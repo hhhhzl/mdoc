@@ -27,7 +27,7 @@ class MDOCParams:
     debug = True
     seed = 18
     results_dir = 'logs'
-    temp_sample = 0.1
+    temp_sample = 0.5
 
     # Multi-agent planning parameters.
     vertex_constraint_radius = robot_planar_disk_radius * 2.4
