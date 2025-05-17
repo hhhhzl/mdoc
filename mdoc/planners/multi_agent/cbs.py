@@ -392,7 +392,6 @@ class CBS:
             # Create a PlanningContext object for the agent which includes the current trajectories of all other agents.
             # Plan the path with the constraint. Add the previous path as experience as a seed if allowed.
             agent_constraint_l = new_state.constraints[agent_id].copy()
-
             # Set soft constraints from paths of other agents, if allowed.
             if self.is_ecbs:
                 soft_constraint_l = self.create_soft_constraints_from_other_agents_paths(new_state, agent_id)
@@ -446,9 +445,11 @@ class CBS:
             # Add the new state to the open list.
             self.open_l.append(new_state)
 
-    def create_soft_constraints_from_other_agents_paths(self,
-                                                        state: SearchState,
-                                                        agent_id: int) -> List[MultiPointConstraint]:
+    def create_soft_constraints_from_other_agents_paths(
+            self,
+            state: SearchState,
+            agent_id: int
+    ) -> List[MultiPointConstraint]:
         """
         Create soft constraints from the paths of other agents.
         """
@@ -467,10 +468,6 @@ class CBS:
                 best_path_pos_other_agent = self.reference_robot.get_position(best_path_other_agent)
                 for t_other_agent in range(0, len(best_path_other_agent), 1):
                     t_agent = t_other_agent + self.start_time_l[agent_id_other] - self.start_time_l[agent_id]
-                    # The last timestep index for this agent is the length of its path - 1.
-                    # If it does not have a path stored, then create constraints for all timesteps
-                    # in the path of the other agent (starting from zero).
-                    T_agent = len(state.path_bl[agent_id_other][0]) - 1
                     if agent_id >= len(state.path_bl):
                         T_agent = len(best_path_other_agent) - 1
                     else:

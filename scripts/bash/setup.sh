@@ -1,6 +1,7 @@
 #!/bin/bash
 
 cd ../../
+pip install -r requirements.txt
 
 cd deps/torch_robotics
 pip install -e .
