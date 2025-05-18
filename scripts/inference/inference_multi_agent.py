@@ -365,7 +365,7 @@ def parse_args():
     parser.add_argument(
         '--hp',
         type=str,
-        default='ECBS',
+        default='CBS',
         choices=[
             'CBS',
             'ECBS',

@@ -310,8 +310,8 @@ class CBS:
                 state = root
                 break
 
-            # Update the root node.
             ix_best_traj = planner_output.idx_best_traj
+            # Update the root node.
             root.path_bl.append(planner_output.trajs_final)
             root.ix_best_path_in_batch_l.append(ix_best_traj)
 

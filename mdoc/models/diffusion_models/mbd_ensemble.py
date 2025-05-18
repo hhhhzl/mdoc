@@ -111,15 +111,13 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         centers = torch.cat(qs_l, dim=0)  # [N,q_dim]
         radii = torch.cat(radii_l, dim=0)  # [N]
-        t0 = torch.cat(t0_l, dim=0)  # [N]
-        t1 = torch.cat(t1_l, dim=0)  # [N]
-        N = centers.shape[0]
+        self._t0 = torch.cat(t0_l, dim=0)  # [N]
+        self._t1 = torch.cat(t1_l, dim=0)  # [N]
+        self._N = centers.shape[0]
         self._centers = centers.view(1, 1, -1, self.robot.q_dim)  # [1,1,N,q_dim]
-        self._radii2 = radii.view(1, 1, N)  # [1,1,N]
-        idx = torch.arange(H, device=device).view(1, H, 1)  # [1,H,1]
-        self._mask_time = ((idx >= t0.view(1, 1, N)) & (idx <= t1.view(1, 1, N))).unsqueeze(-1)  # [1,H,N,1]
-        # time_idx = torch.arange(traj_i.shape[1], device=traj_i.device).view(1, traj_i.shape[1], 1)  # [1, H, 1]
-        # mask_time = ((time_idx >= t0.view(1, 1, N)) & (time_idx <= t1.view(1, 1, N))).unsqueeze(-1)  # [1, H, N, 1]
+        self._radii = radii.view(1, 1, self._N)  # [1,1,N]
+        self._centers_flat = centers  # [N,q_dim]  (contiguous)
+        self._radii_flat = radii # [N]
 
     def _setup_model_environment(self, model_id: int, env_model: Any):
         params = self.diffusion_params.copy()
@@ -170,7 +168,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             traj_bars_i: torch.Tensor,
             max_resample: int = 5,
             free_ratio_target: float = 0.30,
-            lambda_obs: float = 75.0
+            lambda_obs: float = 75.0,
+            enable_k_selection = True,
     ):
         """
         Reverse process for single model
@@ -226,21 +225,58 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         )
         if len(self.soft_constraints[model_id]) > 0:
             lambda_c = 1e-5
+            k = 30
             import time
             start = time.time()
-
             # Reshape for proper broadcasting
             traj_pos = traj_i[..., :self.robot.q_dim].unsqueeze(2)
 
-            # Calculate differences and distances
-            diff = traj_pos - self._centers  # [B, H, N, q_dim]
+            if self._N > k and enable_k_selection:
+                # select k
+                B, H, q_dim = traj_pos.shape[0], traj_pos.shape[1], self.robot.q_dim
+                traj_flat = traj_pos.reshape(-1, q_dim)  # [(B·H), q_dim]
+                dist2_full = torch.cdist(traj_flat, self._centers_flat)  # [(B·H), N]
+
+                dmin, _ = dist2_full.min(dim=0)
+                _, idx = torch.topk(dmin, k=k, largest=False)
+                centers = self._centers_flat[idx].view(1, 1, k, -1)
+                radii = self._radii_flat[idx].view(1, 1, k)
+                t0 = self._t0[idx]
+                t1 = self._t1[idx]
+            else:
+                centers = self._centers_flat.view(1, 1, self._N, -1)
+                radii = self._radii_flat.view(1, 1, self._N)
+                t0 = self._t0
+                t1 = self._t1
+
+            diff = traj_pos - centers  # [B, H, N, q_dim]
             dist = diff.norm(dim=-1, keepdim=True)  # [B, H, N, 1]
 
-            mask_dist = (dist.squeeze(-1) < self._radii2).unsqueeze(-1)
-            mask = self._mask_time & mask_dist  # [B, H, N, 1]
+            idx = torch.arange(traj_pos.shape[1], device=self.device).view(1, traj_pos.shape[1], 1)  # [1, H, 1]
+            mask_time = ((idx >= t0) & (idx <= t1)).unsqueeze(-1)
+            mask_dist = (dist < radii.unsqueeze(-1))  # [B, H, N, 1]
+            mask = mask_time & mask_dist  # [B, H, N, 1]
 
             grad = -diff / (dist + 1e-6) * mask  # [B, H, N, q_dim]
             soft_constraint_grad = grad.sum(dim=2) / lambda_c  # [B, H, q_dim]
+            # print("=============================> solving constraints for: ", time.time() - start, centers.shape)
+
+            # all spheres
+            # Calculate differences and distances
+            # centers = self._centers_flat.view(1, 1, self._N, -1)
+            # radii = self._radii_flat.view(1, 1, self._N)
+            # t0 = self._t0
+            # t1 = self._t1
+            # diff = traj_pos - centers  # [B, H, N, q_dim]
+            # dist = diff.norm(dim=-1, keepdim=True)  # [B, H, N, 1]
+            #
+            # idx = torch.arange(H, device=self.device).view(1, H, 1)  # [1, H, 1]
+            # mask_time = ((idx >= t0) & (idx <= t1)).unsqueeze(-1)
+            # mask_dist = (dist < radii.unsqueeze(-1))  # [B, H, N, 1]
+            # mask = mask_time & mask_dist  # [B, H, N, 1]
+            #
+            # grad = -diff / (dist + 1e-6) * mask  # [B, H, N, q_dim]
+            # soft_constraint_grad = grad.sum(dim=2) / lambda_c  # [B, H, q_dim]
             # print("=============================> solving constraints for: ", time.time() - start, grad.shape[2])
 
         # use demonstration data
@@ -338,7 +374,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         pos_err = (self.goal_state_pos - q_seq).norm(dim=2)  # (B,H)
         ctrl = (us * us).sum(dim=2)  # (B,H)
-        cost = ctrl + 200 * pos_err  # (B,H)
+        cost = ctrl + 500 * pos_err  # (B,H)
 
         # if self.soft_constraint[model_id]:
         #     for constraint in self.soft_constraint[model_id]:

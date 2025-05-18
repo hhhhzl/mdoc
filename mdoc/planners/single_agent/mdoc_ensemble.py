@@ -9,14 +9,11 @@ from math import ceil
 from pathlib import Path
 
 import einops
-import torch
-from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
-from typing import Tuple, List, Dict, Optional
+from typing import Dict, Optional
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint
-from mdoc.models import TemporalUnet, UNET_DIM_MULTS
 from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
 from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
-from mdoc.trainer import get_dataset, get_model
+from mdoc.trainer import get_dataset
 from mdoc.utils.loading import load_params_from_yaml
 from mdoc.planners.common import PlannerOutput, SingleAgentPlanner
 from mdoc.models.diffusion_models.mbd_ensemble import ModelBasedDiffusionEnsemble

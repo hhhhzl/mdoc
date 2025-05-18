@@ -169,8 +169,7 @@ class PrioritizedPlanning:
                 break
 
         # Extract the best path from the batch.
-        best_path_l = [root.path_bl[i][ix_best_path_in_batch].squeeze(0) for i, ix_best_path_in_batch in
-                       enumerate(root.ix_best_path_in_batch_l)]
+        best_path_l = [root.path_bl[i][ix_best_path_in_batch].squeeze(0) for i, ix_best_path_in_batch in enumerate(root.ix_best_path_in_batch_l)]
         # Check for conflicts.
         conflict_l = self.get_conflicts(root)
         print(RED + 'Conflicts root node:', len(conflict_l), RESET)
