@@ -51,7 +51,9 @@ class MultiPointConstraint(Constraint):
     def __init__(self, q_l: List[torch.Tensor],
                  t_range_l: List[Tuple[int, int]],
                  radius_l: List[float] = None,
-                 is_soft: bool = False):
+                 is_soft: bool = False,
+                 priority_weight: List[torch.Tensor] = [1],
+                 ):
         super().__init__()
         # The list of configurations that are constrained.
         self.q_l = q_l
@@ -61,6 +63,7 @@ class MultiPointConstraint(Constraint):
         self.radius_l = [params.vertex_constraint_radius] * len(q_l) if radius_l is None else radius_l
         # The weight of the constraint. This may be used as the guide gradient scaling factor.
         self.is_soft = is_soft
+        self.priority_weight = priority_weight
 
     def get_q_l(self) -> List[torch.Tensor]:
         return self.q_l

@@ -323,7 +323,8 @@ class MDOCEnsemble(SingleAgentPlanner):
                         traj_range_l=c.get_t_range_l(),
                         radius_l=c.radius_l,
                         is_soft=c.is_soft,
-                        tensor_args=self.tensor_args
+                        tensor_args=self.tensor_args,
+                        priority_weight=c.priority_weight
                     )
                 )
         # Carry out inference with the constraints. If there is no experience, inference from scratch.
@@ -399,6 +400,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             for i, constraint in enumerate(cost_constraints_l):
                 qs = constraint.qs
                 traj_ranges = constraint.traj_ranges
+                weight = constraint.priority_weight
                 # Go through each one of the constraining configurations, get its task id, and add it to the
                 # corresponding list of constraints.
                 for j in range(len(qs)):
@@ -410,15 +412,15 @@ class MDOCEnsemble(SingleAgentPlanner):
                     if constraint.is_soft:
                         if task_id not in task_id_to_q_traj_range_radius_soft:
                             task_id_to_q_traj_range_radius_soft[task_id] = []
-                        task_id_to_q_traj_range_radius_soft[task_id].append((q, traj_range, radius))
+                        task_id_to_q_traj_range_radius_soft[task_id].append((q, traj_range, radius, weight))
                     else:
                         if task_id not in task_id_to_q_traj_range_radius_hard:
                             task_id_to_q_traj_range_radius_hard[task_id] = []
-                        task_id_to_q_traj_range_radius_hard[task_id].append((q, traj_range, radius))
+                        task_id_to_q_traj_range_radius_hard[task_id].append((q, traj_range, radius, weight))
 
         # Aggregate the constraints for each task. Create one for hard and one for soft constraints.
         for task_id, q_traj_range_radius_hard in task_id_to_q_traj_range_radius_hard.items():
-            q_l, traj_range_l, radius_l = zip(*q_traj_range_radius_hard)
+            q_l, traj_range_l, radius_l, weight = zip(*q_traj_range_radius_hard)
             # Convert lists from lists of tensors to lists of tensors, tuples, or floats.
             traj_range_l = [(traj_range[0].item(), traj_range[1].item()) for traj_range in traj_range_l]
             radius_l = [radius.item() for radius in radius_l]
@@ -430,14 +432,15 @@ class MDOCEnsemble(SingleAgentPlanner):
                 traj_range_l=traj_range_l,
                 radius_l=radius_l,
                 is_soft=False,
-                tensor_args=self.tensor_args
+                tensor_args=self.tensor_args,
+                priority_weight=weight[0]
             )
             if task_id not in task_id_to_cost_constraints_l:
                 task_id_to_cost_constraints_l[task_id] = []
             task_id_to_cost_constraints_l[task_id].append(cost_constraint)
 
         for task_id, q_traj_range_radius_soft in task_id_to_q_traj_range_radius_soft.items():
-            q_l, traj_range_l, radius_l = zip(*q_traj_range_radius_soft)
+            q_l, traj_range_l, radius_l, weight = zip(*q_traj_range_radius_soft)
             # Convert lists from lists of tensors to lists of tensors, tuples, or floats.
             traj_range_l = [(traj_range[0].item(), traj_range[1].item()) for traj_range in traj_range_l]
             radius_l = [radius.item() for radius in radius_l]
@@ -449,7 +452,8 @@ class MDOCEnsemble(SingleAgentPlanner):
                 traj_range_l=traj_range_l,
                 radius_l=radius_l,
                 is_soft=True,
-                tensor_args=self.tensor_args
+                tensor_args=self.tensor_args,
+                priority_weight=weight[0]
             )
             if task_id not in task_id_to_cost_constraints_l:
                 task_id_to_cost_constraints_l[task_id] = []
