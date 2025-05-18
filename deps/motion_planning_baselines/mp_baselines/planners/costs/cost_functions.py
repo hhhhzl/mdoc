@@ -282,6 +282,7 @@ class CostConstraint(Cost):
             self,
             robot,
             n_support_points,
+            priority_weight,  # for PP
             q_l: List[torch.Tensor],  # Length n.
             traj_range_l: List[tuple],  # Length n. A tuple (start, end) for each constraint. Inclusive.
             radius_l: List[float],  # Length n. The radius for each constraint.
@@ -293,6 +294,7 @@ class CostConstraint(Cost):
         self.traj_ranges = torch.tensor(traj_range_l, **self.tensor_args)  # (n, 2)
         self.radii = torch.tensor(radius_l, device=self.qs.device)  # (n,)
         self.is_soft = is_soft
+        self.priority_weight = priority_weight
 
     def eval(self, trajs, **observation):
         q_pos = self.robot.get_position(trajs)  # (B, H, q_dim)

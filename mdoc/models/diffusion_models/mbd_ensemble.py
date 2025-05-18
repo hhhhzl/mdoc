@@ -84,6 +84,46 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         self.transforms = transforms
         self.context_model = context_model
 
+        # for cache (ECBS calculate collision cost)
+        self._centers = None
+        self._radii2 = None
+        self._time_mask = None
+
+    def _prepare_soft_constraints(
+            self,
+            model_id: int,
+            H: int,
+            device: torch.device
+    ):
+        """
+        Cache for diffusion step：
+            _centers    [1,1,N,q_dim]
+            _radii2     [1,1,N]
+            _time_mask  [1,H,N,1]
+        """
+        qs_l, radii_l, t0_l, t1_l, w_l = [], [], [], [], []
+        for c in self.soft_constraints[model_id]:
+            qs_l.append(c.qs.to(device))  # [K,q_dim]
+            radii_l.append(torch.as_tensor(c.radii, device=device))
+            tr = torch.as_tensor(c.traj_ranges, device=device)  # [K,2]
+            t0_l.append(tr[:, 0])
+            t1_l.append(tr[:, 1])
+            if isinstance(c.priority_weight, torch.Tensor):
+                w_l.append(c.priority_weight.to(device))
+            else:
+                w_l.append(torch.full((len(c.qs),), c.priority_weight, device=device))
+
+        centers = torch.cat(qs_l, dim=0)  # [N,q_dim]
+        radii = torch.cat(radii_l, dim=0)  # [N]
+        self._t0 = torch.cat(t0_l, dim=0)  # [N]
+        self._t1 = torch.cat(t1_l, dim=0)  # [N]
+        self._N = centers.shape[0]
+        self._centers = centers.view(1, 1, -1, self.robot.q_dim)  # [1,1,N,q_dim]
+        self._radii = radii.view(1, 1, self._N)  # [1,1,N]
+        self._centers_flat = centers  # [N,q_dim]  (contiguous)
+        self._radii_flat = radii  # [N]
+        self._weights = torch.cat(w_l).view(1, 1, -1, 1)  # (1,1,N,1)
+
     def _setup_model_environment(self, model_id: int, env_model: Any):
         params = self.diffusion_params.copy()
         if not self.disable_recommended_params:
@@ -133,7 +173,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             traj_bars_i: torch.Tensor,
             max_resample: int = 5,
             free_ratio_target: float = 0.30,
-            lambda_obs: float = 75.0
+            lambda_obs: float = 75.0,
+            enable_k_selection=False,
     ):
         """
         Reverse process for single model
@@ -142,7 +183,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         env_model = self.env_models[model_id]
 
         sigma_i = model_params['sigmas'][i].item()
-        temp_step = np.interp(sigma_i, [model_params['sigmas'][-1].item(), model_params['sigmas'][0].item()], [model_params['params']['temp_sample'] * 0.5, model_params['params']['temp_sample']])
+        # temp_step = np.interp(sigma_i, [model_params['sigmas'][-1].item(), model_params['sigmas'][0].item()], [model_params['params']['temp_sample'] * 0.5, model_params['params']['temp_sample']])
+        temp_step = model_params['params']['temp_sample']
         n_samples = model_params['params']['n_samples']
         attempt = 0
 
@@ -155,7 +197,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
             #  Monte Carlo Sample from q_i
             # velocity
-            eps_u = torch.randn((n_samples, model_params['params']['horizon'], self.robot.q_dim * 2), device=self.device)
+            eps_u = torch.randn((n_samples, model_params['params']['horizon'], self.robot.q_dim * 2),
+                                device=self.device)
             traj_0s = torch.clamp(eps_u * model_params['sigmas'][i] + traj_bars_i, -1.0, 1.0)
 
             # evaluate samples
@@ -165,7 +208,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             traj_0s[..., :self.robot.q_dim] = q_seq
 
             free_ratio = free_mask.float().mean().item()
-            print(f"step {i:03d} | σ={sigma_i:.4f} | free={free_ratio:.2f} | "f"samples={n_samples}")
+            # print(f"step {i:03d} | σ={sigma_i:.4f} | free={free_ratio:.2f} | "f"samples={n_samples}")
 
             if free_ratio >= free_ratio_target or n_samples >= 8192:
                 break
@@ -186,31 +229,70 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             device=traj_i.device
         )
         if len(self.soft_constraints[model_id]) > 0:
-            constraint_centers = torch.stack(
-                [constraint.qs[0] for constraint in self.soft_constraints[model_id]])  # [N_constraints, q_dim]
-            constraint_radii = torch.tensor([constraint.radii[0] for constraint in self.soft_constraints[model_id]],
-                                            device=traj_i.device)  # [N_constraints]
-            lambda_c = torch.tensor(0.00001, device=traj_i.device)
-
+            lambda_c = 1e-7
+            k = 30
+            import time
+            start = time.time()
             # Reshape for proper broadcasting
-            constraint_centers = constraint_centers.view(1, 1, -1, self.robot.q_dim)  # [1, 1, N_constraints, q_dim]
-            constraint_radii = constraint_radii.view(1, 1, -1)  # [1, 1, N_constraints]
+            traj_pos = traj_i[..., :self.robot.q_dim].unsqueeze(2)
+            if self._N > k and enable_k_selection:
+                # select k
+                B, H, q_dim = traj_pos.shape[0], traj_pos.shape[1], self.robot.q_dim
+                traj_flat = traj_pos.reshape(-1, q_dim)  # [(B·H), q_dim]
+                dist2_full = torch.cdist(traj_flat, self._centers_flat)  # [(B·H), N]
 
+                dmin, _ = dist2_full.min(dim=0)
+                _, idx = torch.topk(dmin, k=k, largest=False)
+                centers = self._centers_flat[idx].view(1, 1, k, -1)
+                radii = self._radii_flat[idx].view(1, 1, k)
+                t0 = self._t0[idx]
+                t1 = self._t1[idx]
+            else:
+                centers = self._centers_flat.view(1, 1, self._N, -1)
+                radii = self._radii_flat.view(1, 1, self._N)
+                t0 = self._t0
+                t1 = self._t1
+
+            diff = traj_pos - centers  # [B, H, N, q_dim]
+            dist = diff.norm(dim=-1, keepdim=True)  # [B, H, N, 1]
+
+            idx = torch.arange(traj_pos.shape[1], device=self.device).view(1, traj_pos.shape[1], 1)  # [1, H, 1]
+            mask_time = ((idx >= t0) & (idx <= t1)).unsqueeze(-1)
+            # mask_dist = (dist < radii.unsqueeze(-1))  # [B, H, N, 1]
+            # mask = mask_time & mask_dist  # [B, H, N, 1]
+            #
+            # grad = -diff / (dist + 1e-6) * mask  # [B, H, N, q_dim]
+            # soft_constraint_grad = grad.sum(dim=2) / lambda_c  # [B, H, q_dim]
+            penetration = radii.unsqueeze(-1) - dist  # (B,H,N,1)
+            mask_pen = penetration > 0
+
+            grad = diff * penetration * mask_pen / (dist ** 3)
+
+            weights = self._weights  # broadcast (1,1,N,1)
+            grad = grad * weights * mask_time
+
+            gamma = 1.15
+            grad = grad * (gamma ** i)
+            soft_constraint_grad = grad.sum(dim=2) / lambda_c
+            # print("=============================> solving constraints for: ", time.time() - start, centers.shape)
+
+            # all spheres
             # Calculate differences and distances
-            traj_pos = traj_i[..., :self.robot.q_dim].unsqueeze(2)  # [B, H, 1, q_dim]
-            diff = traj_pos - constraint_centers  # [B, H, N_constraints, q_dim]
-            distances = torch.norm(diff, dim=-1, keepdim=True)  # [B, H, N_constraints, 1]
-
-            # Compute violations mask
-            violations = torch.relu(constraint_radii - distances.squeeze(-1))  # [B, H, N_constraints]
-            mask = (violations > 0).unsqueeze(-1)  # [B, H, N_constraints, 1]
-
-            # Compute and apply gradient
-            grad = -diff / (distances + 1e-6)  # [B, H, N_constraints, q_dim]
-            grad = grad * mask  # [B, H, N_constraints, q_dim]
-
-            # Sum across constraints and time steps
-            soft_constraint_grad = grad.sum(dim=2) / lambda_c  # [B, H, q_dim]
+            # centers = self._centers_flat.view(1, 1, self._N, -1)
+            # radii = self._radii_flat.view(1, 1, self._N)
+            # t0 = self._t0
+            # t1 = self._t1
+            # diff = traj_pos - centers  # [B, H, N, q_dim]
+            # dist = diff.norm(dim=-1, keepdim=True)  # [B, H, N, 1]
+            #
+            # idx = torch.arange(H, device=self.device).view(1, H, 1)  # [1, H, 1]
+            # mask_time = ((idx >= t0) & (idx <= t1)).unsqueeze(-1)
+            # mask_dist = (dist < radii.unsqueeze(-1))  # [B, H, N, 1]
+            # mask = mask_time & mask_dist  # [B, H, N, 1]
+            #
+            # grad = -diff / (dist + 1e-6) * mask  # [B, H, N, q_dim]
+            # soft_constraint_grad = grad.sum(dim=2) / lambda_c  # [B, H, q_dim]
+            # print("=============================> solving constraints for: ", time.time() - start, grad.shape[2])
 
         # use demonstration data
         if self.enable_demo:
@@ -236,11 +318,14 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         if (env_model is not None) and hasattr(env_model, "compute_sdf_grad"):
             q_ws = q_seq  # (B,H,2)
-            sdf_g = env_model.compute_sdf_grad(q_ws.reshape(-1, 2)).view(n_samples, model_params['params']['horizon'], 2)
+            sdf_g = env_model.compute_sdf_grad(q_ws.reshape(-1, 2)).view(n_samples, model_params['params']['horizon'],
+                                                                         2)
             sdf_g = sdf_g.mean(dim=0)  # (H,2)
             score[..., :self.robot.q_dim] += lambda_obs * sdf_g
 
-        traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) * (traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(model_params['alphas_bar'][i - 1])
+        traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) * (
+                traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(
+            model_params['alphas_bar'][i - 1])
 
         best_idx = torch.where(free_mask)[0][costs[free_mask].argmin()]
         best_traj_sample = traj_0s[best_idx]
@@ -273,16 +358,6 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         for u in us:
             state = self.robot.step(state, torch.from_numpy(u), env_model)
             pos_error = torch.norm(self.goal_state_pos - state.q)
-
-            # soft_cost = 0.0
-            # for constraint in soft_constraints:
-            #     c = constraint.q_l[0]
-            #     radius = constraint.radius_l[0]
-            #     lambda_c = constraint.lambda_c
-            #     distance = torch.norm(state.q - c)
-            #     violation = torch.relu(radius - distance)
-            #     soft_cost += lambda_c * violation
-
             costs.append(state.collision_cost + state.control_cost + 2.0 * pos_error)
             # costs.append(state.cost)
             pipeline_states.append(state.pipeline_state)
@@ -314,7 +389,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         pos_err = (self.goal_state_pos - q_seq).norm(dim=2)  # (B,H)
         ctrl = (us * us).sum(dim=2)  # (B,H)
-        cost = ctrl + 7.0 * pos_err  # (B,H)
+        cost = ctrl + 15 * pos_err  # (B,H)
 
         # if self.soft_constraint[model_id]:
         #     for constraint in self.soft_constraint[model_id]:
@@ -371,7 +446,6 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         contexts = deepcopy(contexts)
         hard_conds = deepcopy(hard_conds)
         cross_conds = deepcopy(cross_conds)
-        print("solving constraints:", len(soft_constraints))
         if contexts is None:
             contexts = [None] * len(self.models)
         for m, c_dict in hard_conds.items():
@@ -382,9 +456,15 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         results = {}
         chains = {}
         for model_id in self.models.keys():
-            self.soft_constraints[model_id] = soft_constraints
             traj_n = torch.zeros((n_samples, self.models[model_id]['params']['horizon'], self.robot.q_dim * 2),
                                  device=self.device)
+
+            B, H, _ = traj_n.shape
+            # cold start soft constraints (acceleration)
+            self.soft_constraints[model_id] = soft_constraints
+            if len(self.soft_constraints[model_id]) > 0:
+                self._prepare_soft_constraints(model_id, H, traj_n.device)
+
             # Reverse
             traj_i = traj_n
             model_chain = []
@@ -408,7 +488,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             # evaluate final cost
             final_traj = chains[model_id][-1, ...]
             # final_traj = best_traj
-            final_actions = self.robot.get_velocity(final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
+            final_actions = self.robot.get_velocity(
+                final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
             costs_final, q = self._rollout_us(model_id, self.state_inits, final_actions)
             results[model_id] = {
                 'trajectory': final_traj,
@@ -419,13 +500,14 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             sdf_final = self.env_models[model_id].compute_sdf(final_traj[..., :self.robot.q_dim])
             penetration = (-sdf_final).clip(min=0)
             success = (penetration.max() == 0)
-            print("success from mbd: ", success)
+            print("Success from MBD: ", success)
 
         if return_chain:
             return chains
 
         return results
 
+    # ===================================================================== #
     @torch.no_grad()
     def run_local_inference(
             self,

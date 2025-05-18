@@ -9,14 +9,11 @@ from math import ceil
 from pathlib import Path
 
 import einops
-import torch
-from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
-from typing import Tuple, List, Dict, Optional
+from typing import Dict, Optional
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite, CostGPTrajectory, CostConstraint
-from mdoc.models import TemporalUnet, UNET_DIM_MULTS
 from mdoc.models.diffusion_models.guides import GuideManagerTrajectoriesWithVelocity
 from mdoc.models.diffusion_models.sample_functions import guide_gradient_steps, ddpm_sample_fn
-from mdoc.trainer import get_dataset, get_model
+from mdoc.trainer import get_dataset
 from mdoc.utils.loading import load_params_from_yaml
 from mdoc.planners.common import PlannerOutput, SingleAgentPlanner
 from mdoc.models.diffusion_models.mbd_ensemble import ModelBasedDiffusionEnsemble
@@ -326,7 +323,8 @@ class MDOCEnsemble(SingleAgentPlanner):
                         traj_range_l=c.get_t_range_l(),
                         radius_l=c.radius_l,
                         is_soft=c.is_soft,
-                        tensor_args=self.tensor_args
+                        tensor_args=self.tensor_args,
+                        priority_weight=c.priority_weight
                     )
                 )
         # Carry out inference with the constraints. If there is no experience, inference from scratch.
@@ -402,6 +400,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             for i, constraint in enumerate(cost_constraints_l):
                 qs = constraint.qs
                 traj_ranges = constraint.traj_ranges
+                weight = constraint.priority_weight
                 # Go through each one of the constraining configurations, get its task id, and add it to the
                 # corresponding list of constraints.
                 for j in range(len(qs)):
@@ -413,15 +412,15 @@ class MDOCEnsemble(SingleAgentPlanner):
                     if constraint.is_soft:
                         if task_id not in task_id_to_q_traj_range_radius_soft:
                             task_id_to_q_traj_range_radius_soft[task_id] = []
-                        task_id_to_q_traj_range_radius_soft[task_id].append((q, traj_range, radius))
+                        task_id_to_q_traj_range_radius_soft[task_id].append((q, traj_range, radius, weight))
                     else:
                         if task_id not in task_id_to_q_traj_range_radius_hard:
                             task_id_to_q_traj_range_radius_hard[task_id] = []
-                        task_id_to_q_traj_range_radius_hard[task_id].append((q, traj_range, radius))
+                        task_id_to_q_traj_range_radius_hard[task_id].append((q, traj_range, radius, weight))
 
         # Aggregate the constraints for each task. Create one for hard and one for soft constraints.
         for task_id, q_traj_range_radius_hard in task_id_to_q_traj_range_radius_hard.items():
-            q_l, traj_range_l, radius_l = zip(*q_traj_range_radius_hard)
+            q_l, traj_range_l, radius_l, weight = zip(*q_traj_range_radius_hard)
             # Convert lists from lists of tensors to lists of tensors, tuples, or floats.
             traj_range_l = [(traj_range[0].item(), traj_range[1].item()) for traj_range in traj_range_l]
             radius_l = [radius.item() for radius in radius_l]
@@ -433,14 +432,15 @@ class MDOCEnsemble(SingleAgentPlanner):
                 traj_range_l=traj_range_l,
                 radius_l=radius_l,
                 is_soft=False,
-                tensor_args=self.tensor_args
+                tensor_args=self.tensor_args,
+                priority_weight=weight[0]
             )
             if task_id not in task_id_to_cost_constraints_l:
                 task_id_to_cost_constraints_l[task_id] = []
             task_id_to_cost_constraints_l[task_id].append(cost_constraint)
 
         for task_id, q_traj_range_radius_soft in task_id_to_q_traj_range_radius_soft.items():
-            q_l, traj_range_l, radius_l = zip(*q_traj_range_radius_soft)
+            q_l, traj_range_l, radius_l, weight = zip(*q_traj_range_radius_soft)
             # Convert lists from lists of tensors to lists of tensors, tuples, or floats.
             traj_range_l = [(traj_range[0].item(), traj_range[1].item()) for traj_range in traj_range_l]
             radius_l = [radius.item() for radius in radius_l]
@@ -452,7 +452,8 @@ class MDOCEnsemble(SingleAgentPlanner):
                 traj_range_l=traj_range_l,
                 radius_l=radius_l,
                 is_soft=True,
-                tensor_args=self.tensor_args
+                tensor_args=self.tensor_args,
+                priority_weight=weight[0]
             )
             if task_id not in task_id_to_cost_constraints_l:
                 task_id_to_cost_constraints_l[task_id] = []
@@ -468,17 +469,14 @@ class MDOCEnsemble(SingleAgentPlanner):
         # Add these cost factors, alongside their weights as specified, to the `guide` object of the model.
         # Here we add specific constraints to each model. We may need to break down constraints
         # that span multiple models.
-        # task_id_to_cost_constraints_l = self.split_cost_constraints_to_tasks(cost_constraints_l)
-        # soft_constraints = []
-        # for task_id, cost_constraints_l in task_id_to_cost_constraints_l.items():
-        #     for cost_constraint in cost_constraints_l:
-        #         cost_constraint.traj_ranges -= task_id * self.n_support_points
-        #         cost_constraint.qs -= self.transforms[task_id]  # TODO(yorai): check this.
-        #         self.guides[task_id].add_extra_costs([cost_constraint],
-        #                                              [self.weight_grad_cost_constraints
-        #                                               if not cost_constraint.is_soft else
-        #                                               self.weight_grad_cost_soft_constraints])
-        #         soft_constraints.append(cost_constraint)
+        task_id_to_cost_constraints_l = self.split_cost_constraints_to_tasks(cost_constraints_l)
+        soft_constraints = []
+        for task_id, cost_constraints in task_id_to_cost_constraints_l.items():
+            for cost_constraint in cost_constraints:
+                cost_constraint.traj_ranges -= task_id * self.n_support_points
+                cost_constraint.qs -= self.transforms[task_id]  # TODO(yorai): check this.
+                # self.guides[task_id].add_extra_costs([cost_constraint], [self.weight_grad_cost_constraints if not cost_constraint.is_soft else self.weight_grad_cost_soft_constraints])
+                soft_constraints.append(cost_constraint)
 
         # Sample trajectories with the diffusion/cvae model
         with TimerCUDA() as timer_model_sampling:
@@ -492,7 +490,7 @@ class MDOCEnsemble(SingleAgentPlanner):
                 sample_fn=ddpm_sample_fn,
                 sample_kwargs=self.sample_kwargs,
                 n_diffusion_steps_without_noise=self.n_diffusion_steps_without_noise,
-                soft_constraints=cost_constraints_l
+                soft_constraints=soft_constraints
             )
         t_model_sampling = timer_model_sampling.elapsed
         print(f't_model_sampling: {t_model_sampling:.3f} sec')
@@ -653,10 +651,11 @@ class MDOCEnsemble(SingleAgentPlanner):
 
         # visualize in the planning environment
         planner_visualizer.animate_opt_iters_robots(
-            trajs=pos_trajs_iters, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
+            trajs=pos_trajs_iters,
+            start_state=self.start_state_pos,
+            goal_state=self.goal_state_pos,
             traj_best=traj_final_free_best,
             video_filepath=os.path.join(self.results_dir, f'{base_file_name}-traj-opt-iters.gif'),
-            # n_frames=max((2, len(trajs_iters))),
             n_frames=2,
             anim_time=5
         )

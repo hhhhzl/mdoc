@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
-from typing import Tuple, List
+from typing import Tuple, List, Sequence
 from enum import Enum
 import concurrent.futures
 
@@ -33,6 +33,8 @@ class PrioritizedPlanning:
                  start_time_l: List[int] = None,
                  reference_robot=None,
                  reference_task=None,
+                 priority: Sequence[int] | None = None,
+                 priority_base: float = 1.5,
                  **kwargs):
 
         # Some parameters:
@@ -66,6 +68,13 @@ class PrioritizedPlanning:
                                                       self.start_state_pos_l,
                                                       self.goal_state_pos_l):
             raise ValueError('Start or goal states are invalid.')
+
+        if priority is None:
+            self.priority: list[int] = list(range(self.num_agents))
+        else:
+            assert len(priority) == self.num_agents, "priority length must equal num_agents"
+            self.priority = list(map(int, priority))
+        self.priority_base: float = float(priority_base)
 
     def render_paths(self, paths_l: List[torch.Tensor], constraints_l: List[MultiPointConstraint] = None,
                      animation_duration: float = 10.0, output_fpath=None, n_frames=None, plot_trajs=True,
@@ -129,14 +138,13 @@ class PrioritizedPlanning:
         root = SearchState([], [])
         for i in range(len(self.low_level_planner_l)):
             constraint_l = self.create_soft_constraints_from_other_agents_paths(root, agent_id=i)
-            for c in constraint_l:
-                # Make the constraints hard. This makes their collection act as a priority constraint.
-                c.is_soft = False
-                # Clip to range.
-                c.t_range_l = [(max(0, min(t_range[0], params.horizon - 1)),
-                                min(params.horizon - 1, t_range[1]))
-                               for t_range in c.t_range_l]
-
+            # for c in constraint_l:
+            #     # Make the constraints hard. This makes their collection act as a priority constraint.
+            #     c.is_soft = False
+            #     # Clip to range.
+            #     c.t_range_l = [(max(0, min(t_range[0], params.horizon - 1)),
+            #                     min(params.horizon - 1, t_range[1]))
+            #                    for t_range in c.t_range_l]
             planner_output = self.low_level_planner_l[i](self.start_state_pos_l[i],
                                                          self.goal_state_pos_l[i],
                                                          constraints_l=constraint_l)
@@ -169,8 +177,7 @@ class PrioritizedPlanning:
                 break
 
         # Extract the best path from the batch.
-        best_path_l = [root.path_bl[i][ix_best_path_in_batch].squeeze(0) for i, ix_best_path_in_batch in
-                       enumerate(root.ix_best_path_in_batch_l)]
+        best_path_l = [root.path_bl[i][ix_best_path_in_batch].squeeze(0) for i, ix_best_path_in_batch in enumerate(root.ix_best_path_in_batch_l)]
         # Check for conflicts.
         conflict_l = self.get_conflicts(root)
         print(RED + 'Conflicts root node:', len(conflict_l), RESET)
@@ -196,18 +203,19 @@ class PrioritizedPlanning:
         q_l = []
         t_range_l = []
         radius_l = []
+        weight_l = []
         num_agents_in_state = len(state.path_bl)
         for agent_id_other in range(num_agents_in_state):
             if agent_id_other != agent_id:
                 best_path_other_agent = \
                     state.path_bl[agent_id_other][state.ix_best_path_in_batch_l[agent_id_other]].squeeze(0)
                 best_path_pos_other_agent = self.reference_robot.get_position(best_path_other_agent)
+
+                delta = self.priority[agent_id] - self.priority[agent_id_other]
+                weight = self.priority_base ** max(delta, 0)
+
                 for t_other_agent in range(0, len(best_path_other_agent), 1):
                     t_agent = t_other_agent + self.start_time_l[agent_id_other] - self.start_time_l[agent_id]
-                    # The last timestep index for this agent is the lenfth of its path - 1.
-                    # If it does not have a path stored, then create constraints for all timesteps
-                    # in the path of the other agent (starting from zero).
-                    T_agent = len(state.path_bl[agent_id_other][0]) - 1
                     if agent_id >= len(state.path_bl):
                         T_agent = len(best_path_other_agent) - 1
                     else:
@@ -217,11 +225,10 @@ class PrioritizedPlanning:
                         q_l.append(best_path_pos_other_agent[t_other_agent])
                         t_range_l.append((t_agent, t_agent + 1))
                         radius_l.append(params.vertex_constraint_radius)
+                        weight_l.append(weight)
 
         if len(q_l) > 0:
-            soft_constraint = MultiPointConstraint(q_l=q_l, t_range_l=t_range_l)
-            soft_constraint.radius_l = radius_l
-            soft_constraint.is_soft = True
+            soft_constraint = MultiPointConstraint(q_l=q_l, radius_l=radius_l, is_soft=True, t_range_l=t_range_l, priority_weight=torch.tensor(weight_l))
             agent_constraint_l.append(soft_constraint)
         return agent_constraint_l
 

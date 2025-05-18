@@ -32,7 +32,6 @@ from scripts import (
     LowerPlannerMethodType
 )
 
-
 allow_ops_in_compiled_graph()
 device = get_torch_device(params.device)
 print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
@@ -332,11 +331,14 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
                              plot_trajs=True,
                              show_robot_in_image=True)
         if test_config.render_animation:
-            paths_l = densify_trajs(paths_l, 1)  # <------ Larger numbers produce nicer animations. But take longer to make too.
+            paths_l = densify_trajs(paths_l,
+                                    1)  # <------ Larger numbers produce nicer animations. But take longer to make too.
             planner.render_paths(paths_l,
                                  output_fpath=os.path.join(results_dir, f'{exp_name}.gif'),
                                  plot_trajs=True,
                                  animation_duration=10)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Multi-agent planning configuration')
 
@@ -367,8 +369,8 @@ def parse_args():
         choices=[
             'CBS',
             'ECBS',
-            'XCBS',
             'PP',
+            'XCBS',
             'XECBS'
         ],
         help='Multi-agent planner class'
@@ -393,7 +395,7 @@ def parse_args():
     parser.add_argument(
         '--rl',
         type=float,
-        default=60,
+        default=1200,
         help='Runtime limit in seconds'
     )
     parser.add_argument(
@@ -407,7 +409,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvConveyor2D-RobotPlanarDisk',
+        default='EnvEmptyNoWait2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
