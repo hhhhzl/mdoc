@@ -342,6 +342,22 @@ class MDOCEnsemble(SingleAgentPlanner):
             # Unnormalize trajectory samples from the models.
             trajs_iters, trajs_final, trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs = (
                 self.task.get_traj_unnormalized(model_index, self.datasets, trajs_normalized_iters))
+
+            planner_visualizer = PlanningVisualizer(task=self.task)
+            # planner_visualizer.render_robot_trajectories(
+            #     trajs=trajs_final, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
+            #     render_planner=False,
+            # )
+            # plt.show()
+            import random
+            planner_visualizer.animate_robot_trajectories(
+                trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
+                plot_trajs=True,
+                video_filepath=f'results/robot-traj_{random.randint(50, 100)}.gif',
+                n_frames=trajs_final.shape[0],
+                anim_time=5.0
+            )
+
             results_ensemble[model_index] = self.task.get_stats(model_index, trajs_iters, trajs_final,
                                                                 trajs_final_coll,
                                                                 trajs_final_coll_idxs, trajs_final_free,

@@ -23,8 +23,7 @@ from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
 from mdoc.common import get_start_goal_pos_circle
 from mdoc.common.pretty_print import *
-from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
-    get_result_dir_from_trial_config, TrialSuccessStatus
+from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, get_result_dir_from_trial_config, TrialSuccessStatus
 
 from scripts import (
     MultiAgentPlannerType,
@@ -409,7 +408,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmptyNoWait2D-RobotPlanarDisk',
+        default='EnvDropRegion2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
