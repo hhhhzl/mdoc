@@ -633,8 +633,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             best_traj = None
             best_cost = float('inf')
 
-            for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, 0, -1),
-                          desc=f"Diffusing model {model_id}"):
+            for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, -1, -1), desc=f"Diffusing model {model_id}"):
                 traj_i, sample_i, cost_i = self._reverse_diffusion_step(model_id, i, traj_i)
                 if return_chain:
                     model_chain.append(traj_i)

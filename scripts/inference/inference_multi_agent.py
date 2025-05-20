@@ -408,7 +408,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvDropRegion2D-RobotPlanarDisk',
+        default='EnvEmptyNoWait2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
