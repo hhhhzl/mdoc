@@ -14,6 +14,7 @@ from .diffusion_model_base import make_timesteps
 import einops
 from torch_robotics.robots.robot_base import RobotState
 from concurrent.futures import ThreadPoolExecutor
+from mp_baselines.planners.costs.cost_functions import CostConstraint
 
 
 class ModelBasedDiffusionEnsemble(nn.Module):
@@ -81,6 +82,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         for model_id, env_model in env_models.items():
             self._setup_model_environment(model_id, env_model)
             self.soft_constraints[model_id] = []
+            # self._add_endpoint_soft_constraints(model_id)
         self.transforms = transforms
         self.context_model = context_model
 
@@ -166,6 +168,32 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             'params': params
         }
 
+    # --------------------------------------------------------------------- #
+    # Soft "safety ball" around start / goal poses
+    # --------------------------------------------------------------------- #
+    def _add_endpoint_soft_constraints(self, model_id, radius=0.05, window=10, weight=1.0):
+        """
+        Create and register two CostConstraint objects that keep the first
+         <window> and last <window> timesteps within a ball of <radius>
+        around the (potentially very wall‑adjacent) start and goal poses.
+        """
+
+        horizon = self.models[model_id]['params']['horizon']
+        qs = [self.start_state_pos.clone(), self.goal_state_pos.clone()]
+        traj_ranges = [(0, window - 1), (horizon - window, horizon - 1)]
+        radii = [radius, radius]
+        constraint = CostConstraint(
+            self.robot,
+            horizon,
+            q_l=qs,
+            traj_range_l=traj_ranges,
+            radius_l=radii,
+            is_soft=True,
+            tensor_args={'device': self.device},
+            priority_weight=weight
+        )
+        self.soft_constraints[model_id].append(constraint)
+
     def _project_to_free_space(self, q_ws, env_model, robot_radius, max_iter=1, grad_clip=5.0):
         """hard constraint"""
         B, H, _ = q_ws.shape
@@ -200,12 +228,14 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         return q_flat.view(B, H, self.robot.q_dim)
 
-    def _project_traj_with_segment_check(self, q_ws, env_model, robot_radius, step=0.03, max_project_iter=1, grad_clip=5.0):
+    def _project_traj_with_segment_check(self, q_ws, env_model, robot_radius, step=0.03, max_project_iter=1,
+                                         grad_clip=5.0):
         """
         """
         B, H0, _ = q_ws.shape
         flag = False
-        q_ws = self._project_to_free_space(q_ws, env_model, robot_radius, max_iter=max_project_iter, grad_clip=grad_clip)
+        q_ws = self._project_to_free_space(q_ws, env_model, robot_radius, max_iter=max_project_iter,
+                                           grad_clip=grad_clip)
 
         new_trajs = []
         for b in range(B):
@@ -240,6 +270,33 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             padded[b, :t.shape[0]] = t
 
         return padded, flag
+
+    def _segment_free_mask(self, q_ws, env_model, robot_radius, step=0.03):
+        """
+        Return Bool mask indicating whether each trajectory in the batch is
+        entirely collision‑free when each poly‑line segment is densely sampled
+        every <step> meters.
+        """
+
+        B, H, _ = q_ws.shape
+        device = q_ws.device
+        free_mask = torch.ones(B, dtype=torch.bool, device=device)
+        for b in range(B):
+            pts = q_ws[b]
+            for i in range(H - 1):
+                p0, p1 = pts[i], pts[i + 1]
+                seg_len = torch.norm(p1 - p0).item()
+                n_samples = max(int(seg_len / step), 1)
+                if n_samples == 1:
+                    continue
+                alphas = torch.linspace(0.0, 1.0, n_samples + 1, device=device)[1:]
+                inter = p0 * (1 - alphas).unsqueeze(1) + p1 * alphas.unsqueeze(1)
+                sdf = env_model.compute_sdf(inter) - robot_radius
+                if (sdf < 0).any():
+                    free_mask[b] = False
+                    break
+
+        return free_mask
 
     def _resample_fixed_horizon(self, pts, target_H):
         """"""
@@ -277,8 +334,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         env_model = self.env_models[model_id]
 
         sigma_i = model_params['sigmas'][i].item()
-        temp_step = np.interp(sigma_i, [model_params['sigmas'][-1].item(), model_params['sigmas'][0].item()], [model_params['params']['temp_sample'] * 0.5, model_params['params']['temp_sample']])
-        # temp_step = model_params['params']['temp_sample']
+        # temp_step = np.interp(sigma_i, [model_params['sigmas'][-1].item(), model_params['sigmas'][0].item()], [model_params['params']['temp_sample'] * 0.5, model_params['params']['temp_sample']])
+        temp_step = model_params['params']['temp_sample']
         n_samples = model_params['params']['n_samples']
         attempt = 0
 
@@ -286,11 +343,12 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             # recover the trajectory
             if traj_bars_i.shape[0] != n_samples:
                 traj_bars_i = traj_bars_i[:1].repeat(n_samples, 1, 1)
-            # traj_i = traj_bars_i.clone()
-            traj_i = traj_bars_i * torch.sqrt(model_params['alphas_bar'][i])
+            traj_i = traj_bars_i.clone()
+            # traj_i = traj_bars_i * torch.sqrt(model_params['alphas_bar'][i])
 
             #  Monte Carlo Sample from q_i velocity
-            eps_u = torch.randn((n_samples, model_params['params']['horizon'], self.robot.q_dim * 2), device=self.device)
+            eps_u = torch.randn((n_samples, model_params['params']['horizon'], self.robot.q_dim * 2),
+                                device=self.device)
             traj_0s = torch.clamp(eps_u * model_params['sigmas'][i] + traj_bars_i, -1, 1)
 
             # evaluate samples
@@ -298,24 +356,30 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             actions = traj_0s[..., self.robot.q_dim:]
             costs, q_seq, free_mask = self._rollout_us_batch(model_id, self.state_inits, actions)
             # print("sdf min per traj:", env_model.compute_sdf(q_seq.reshape(-1, 2)).view(n_samples, model_params['params']['horizon']).min(dim=1).values)
-            q_seq = self._project_to_free_space(
-                q_seq,
-                env_model,
-                robot_radius=mparams.robot_planar_disk_radius,
-                grad_clip=5.0,
-            )
+            # q_seq = self._project_to_free_space(
+            #     q_seq,
+            #     env_model,
+            #     robot_radius=mparams.robot_planar_disk_radius,
+            #     grad_clip=2,
+            #     max_iter=3
+            # )
             # q_seq = self._resample_fixed_horizon(
             #     q_seq,
             #     target_H=model_params['params']['horizon']
             # )
             traj_0s[..., :self.robot.q_dim] = q_seq
 
-            sdf_proj = env_model.compute_sdf(q_seq.reshape(-1, 2)).view(n_samples, model_params['params']['horizon'])
-            sdf_proj -= (mparams.robot_planar_disk_radius + 1e-8)
-            free_mask = (sdf_proj.min(dim=1).values >= 0)
+            # sdf_proj = env_model.compute_sdf(q_seq.reshape(-1, 2)).view(n_samples, model_params['params']['horizon'])
+            # sdf_proj -= (mparams.robot_planar_disk_radius + 1e-8)
+            # free_mask = (sdf_proj.min(dim=1).values >= 0)
+            # free_mask = self._segment_free_mask(
+            #     q_seq,
+            #     env_model,
+            #     robot_radius=mparams.robot_planar_disk_radius,
+            #     step=0.03
+            # )
             free_ratio = free_mask.float().mean().item()
-            print(f"step {i:03d} | σ={sigma_i:.4f} | free={free_ratio:.2f} | "f"samples={n_samples}")
-
+            # print(f"step {i:03d} | σ={sigma_i:.4f} | free={free_ratio:.2f} | "f"samples={n_samples}")
             if i >= 2 and free_ratio > 0:
                 break
             elif i < 2 and free_ratio == free_ratio_target:
@@ -331,13 +395,10 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         logp0 = -(costs - cost_mean) / cost_std / temp_step
         logp0[~free_mask] = -torch.inf
 
-        soft_constraint_grad = torch.zeros(
-            traj_i.shape[0], traj_i.shape[1], self.robot.q_dim,  # [B, H, q_dim]
-            device=traj_i.device
-        )
+        soft_constraint_grad = torch.zeros(traj_i.shape[0], traj_i.shape[1], self.robot.q_dim, device=traj_i.device)
         if len(self.soft_constraints[model_id]) > 0:
-            lambda_c = 1e-5
-            k = 30
+            lambda_c = 5e-4
+            k = 15
             import time
             start = time.time()
             # Reshape for proper broadcasting
@@ -405,7 +466,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if self.enable_demo:
             xref_logpds = torch.tensor([env_model.eval_xref_logpd(q) for q in qs], device=self.device)
             xref_logpds = xref_logpds - xref_logpds.max()
-            logpdemo = -(xref_logpds + env_model.rew_xref - cost_mean) / cost_std / model_params['params']['temp_sample']
+            logpdemo = -(xref_logpds + env_model.rew_xref - cost_mean) / cost_std / model_params['params'][
+                'temp_sample']
             demo_mask = logpdemo > logp0
             logp0 = torch.where(demo_mask, logpdemo, logp0)
             logp0 = (logp0 - logp0.mean()) / logp0.std() / model_params['params']['temp_sample']
@@ -422,14 +484,14 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         expanded_grad[..., :self.robot.q_dim] = soft_constraint_grad
         score += expanded_grad  # add soft constraints
 
-        if env_model is not None:
-            q_ws = traj_i  # (B,H,2)
-            R = mparams.robot_planar_disk_radius
-            margin = 9e-4
-            lambda_obs = 200
-            sdf_grad = env_model.compute_sdf(q_ws.reshape(-1, self.robot.q_dim)).view(traj_i.shape[0], traj_i.shape[1], self.robot.q_dim)  # (B,H,2)
-            penetration = (margin - (sdf_grad - (R + 1e-8))).clamp(min=0.0)  # (B,H,2)
-            score[..., :self.robot.q_dim] += (lambda_obs / margin) * penetration * sdf_grad  # (B,H,2)
+        # if env_model is not None:
+        #     q_ws = traj_i  # (B,H,2)
+        #     R = mparams.robot_planar_disk_radius
+        #     margin = 9e-4
+        #     lambda_obs = 400
+        #     sdf_grad = env_model.compute_sdf(q_ws.reshape(-1, self.robot.q_dim)).view(traj_i.shape[0], traj_i.shape[1], self.robot.q_dim)  # (B,H,2)
+        #     penetration = (margin - (sdf_grad - (R + 1e-8))).clamp(min=0.0)  # (B,H,2)
+        #     score[..., :self.robot.q_dim] += (lambda_obs / margin) * penetration * sdf_grad  # (B,H,2)
 
         traj_i_m1 = (1 / torch.sqrt(model_params['alphas'][i]) * (
                 traj_i + (1.0 - model_params['alphas_bar'][i]) * score)) / torch.sqrt(
@@ -497,22 +559,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         pos_err = (self.goal_state_pos - q_seq).norm(dim=2)  # (B,H)
         ctrl = (us * us).sum(dim=2)  # (B,H)
-        cost = 1 * ctrl + 20 * pos_err  # (B,H)
-
-        # w_goal = 15
-        # w_stop = 20
-        # cost[:, -1] += w_goal * pos_err[:, -1]
-        # cost[:, -1] += w_stop * ctrl[:, -1]
-
-        # if self.soft_constraint[model_id]:
-        #     for constraint in self.soft_constraint[model_id]:
-        #         c = constraint.q_l[0].to(q_seq.device)
-        #         radius = constraint.radius_l[0]
-        #         lambda_c = constraint.lambda_c
-        #
-        #         distances = torch.norm(q_seq - c, dim=2)
-        #         violations = torch.relu(radius - distances)
-        #         cost += lambda_c * violations
+        cost = ctrl + 500 * pos_err  # (B,H)
 
         if env is not None:
             q_ws = q_seq  # default : already global
@@ -520,11 +567,11 @@ class ModelBasedDiffusionEnsemble(nn.Module):
                 offset = self.transforms[model_id].to(q_seq.device)  # (2,)
                 q_ws = q_seq + offset.view(1, 1, -1)  # broadcast to (B,H,2)
 
-            q_ws = self._project_to_free_space(q_ws, env, mparams.robot_planar_disk_radius, max_iter = 1, grad_clip = 5.0)
+            # q_ws = self._project_to_free_space(q_ws, env, mparams.robot_planar_disk_radius, max_iter=3, grad_clip=2)
             sdf = env.compute_sdf(q_ws.reshape(-1, self.robot.q_dim)).view(B, H)  # (B,H)
             sdf -= (mparams.robot_planar_disk_radius + 1e-8)
             pen = (-sdf).clamp(min=0)
-            # cost += 200 * pen.pow(2)
+            # cost += 5000 * pen.pow(2)
             free_mask = (sdf.min(dim=1).values >= 0)
         else:
             free_mask = torch.ones(B, dtype=torch.bool, device=us.device)
@@ -586,7 +633,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             best_traj = None
             best_cost = float('inf')
 
-            for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, 0, -1), desc=f"Diffusing model {model_id}"):
+            for i in tqdm(range(self.models[model_id]['params']['n_diffusion_step'] - 1, 0, -1),
+                          desc=f"Diffusing model {model_id}"):
                 traj_i, sample_i, cost_i = self._reverse_diffusion_step(model_id, i, traj_i)
                 if return_chain:
                     model_chain.append(traj_i)
@@ -599,20 +647,22 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
             # evaluate final cost
             final_traj = chains[model_id][-1, ...]
-            final_actions = self.robot.get_velocity(final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
+            final_actions = self.robot.get_velocity(
+                final_traj).cpu().numpy() if self.device != 'cpu' else self.robot.get_velocity(traj_i).numpy()
             costs_final, q = self._rollout_us(model_id, self.state_inits, final_actions)
             results[model_id] = {
                 'trajectory': final_traj,
                 'cost': costs_final.mean().item(),
                 'cost_history': costs
             }
-            sdf_final = self.env_models[model_id].compute_sdf(final_traj[..., :self.robot.q_dim])
-            penetration = (-sdf_final).clip(min=0)
-            free_mask = (sdf_final.min(dim=1).values >= 0)
-            success = (penetration.max() == 0)
-            free_ratio = free_mask.float().mean().item()
-            print("Success from direct MBD: ", success, free_ratio)
-            chains[model_id] = final_traj.unsqueeze(0)
+            # sdf_final = self.env_models[model_id].compute_sdf(final_traj[..., :self.robot.q_dim])
+            # sdf_final -= (mparams.robot_planar_disk_radius + 1e-8)
+            # penetration = (-sdf_final).clip(min=0)
+            # free_mask = (sdf_final.min(dim=1).values >= 0)
+            # success = (penetration.max() == 0)
+            # free_ratio = free_mask.float().mean().item()
+            # print("Success from direct MBD: ", success, free_ratio)
+            # chains[model_id] = final_traj.unsqueeze(0)
 
         if return_chain:
             return chains

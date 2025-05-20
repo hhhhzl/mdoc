@@ -8,14 +8,14 @@ class MDOCParams:
 
     # Single-agent planning parameters.
     use_guide_on_extra_objects_only = False
-    n_samples = 128  # Batch size. Number of trajectories generated together.
+    n_samples = 64  # Batch size. Number of trajectories generated together.
     horizon = 64  # Number of steps in the trajectory.
     n_local_inference_noising_steps = 3  # Number of noising steps in local inference.
     n_local_inference_denoising_steps = 3  # Number of denoising steps in local inference.
     start_guide_steps_fraction = 0.5  # The fraction of the inference steps that are guided.
     n_guide_steps = 20  # The number of steps taken when applying conditioning at one diffusion step.
     n_diffusion_steps_without_noise = 1  # How many (at the end) diffusion steps get zero noise and guiding.
-    n_diffusion_steps = 200
+    n_diffusion_steps = 100
     weight_grad_cost_collision = 2e-2
     weight_grad_cost_smoothness = 8e-2
     weight_grad_cost_constraints = 2e-1
