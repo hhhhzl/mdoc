@@ -342,6 +342,22 @@ class MDOCEnsemble(SingleAgentPlanner):
             # Unnormalize trajectory samples from the models.
             trajs_iters, trajs_final, trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs = (
                 self.task.get_traj_unnormalized(model_index, self.datasets, trajs_normalized_iters))
+
+            # planner_visualizer = PlanningVisualizer(task=self.task)
+            # planner_visualizer.render_robot_trajectories(
+            #     trajs=trajs_final, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
+            #     render_planner=False,
+            # )
+            # plt.show()
+            # import random
+            # planner_visualizer.animate_robot_trajectories(
+            #     trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
+            #     plot_trajs=True,
+            #     video_filepath=f'results/robot-traj_{random.randint(50, 100)}.gif',
+            #     n_frames=trajs_final.shape[0],
+            #     anim_time=5.0
+            # )
+
             results_ensemble[model_index] = self.task.get_stats(model_index, trajs_iters, trajs_final,
                                                                 trajs_final_coll,
                                                                 trajs_final_coll_idxs, trajs_final_free,
@@ -520,11 +536,6 @@ class MDOCEnsemble(SingleAgentPlanner):
                     trajs_normalized_iters_dict[task_id] = torch.cat((trajs_normalized_iters, chain))
             t_post_diffusion_guide = timer_post_model_sample_guide.elapsed
             print(f't_post_diffusion_guide: {t_post_diffusion_guide:.3f} sec')
-
-        # Remove the extra cost.
-        # for task_id in task_id_to_cost_constraints_l:
-        #     self.guides[task_id].reset_extra_costs()
-        # self.guide.reset_extra_costs()
 
         return trajs_normalized_iters_dict, t_model_sampling, t_post_diffusion_guide
 

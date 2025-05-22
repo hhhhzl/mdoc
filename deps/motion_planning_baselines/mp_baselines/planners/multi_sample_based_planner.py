@@ -4,7 +4,6 @@ from mp_baselines.planners.multi_processing import MultiProcessor
 
 
 class MultiSampleBasedPlanner:
-
     def __init__(
             self,
             planner,

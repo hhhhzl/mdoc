@@ -82,6 +82,7 @@ class PlanningTaskEnsemble(TaskEnsemble):
             datasets,
             traj_normalized
     ):
+        # trajs_iters = traj_normalized
         trajs_iters = datasets[task_id].unnormalize_trajectories(traj_normalized)
         trajs_final = trajs_iters[-1]
         trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs, _ = \
@@ -189,8 +190,7 @@ class PlanningTaskEnsemble(TaskEnsemble):
 
         results['trajs_final_coll_idxs'] = coll_ids.long()
         results['trajs_final_free_idxs'] = free_ids.long()
-
-        results['trajs_final_coll'] = trajs_final[:, results['trajs_final_coll_idxs'], ...] if len(coll_ids) > 0 else torch.tensor([], **self.tensor_args)
+        results['trajs_final_coll'] = trajs_final[results['trajs_final_coll_idxs'], :, ...] if len(coll_ids) > 0 else torch.tensor([], **self.tensor_args)
         results['trajs_final_free'] = trajs_final[results['trajs_final_free_idxs'], :, ...] if len(free_ids) > 0 else torch.tensor([], **self.tensor_args)
         results['success_free_trajs'] = 1 if len(free_ids) > 0 else 0
         results['fraction_free_trajs'] = len(free_ids) / results['trajs_iters'].shape[1]
