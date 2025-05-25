@@ -4,8 +4,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
-
-from mp_baselines.planners.chomp import CHOMP
 from mp_baselines.planners.costs.cost_functions import CostCollision, CostComposite
 from mp_baselines.planners.dynamics.point import PointParticleDynamics
 from mp_baselines.planners.mppi import MPPI
