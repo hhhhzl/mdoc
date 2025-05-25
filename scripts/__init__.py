@@ -29,11 +29,15 @@ class EnvironmentType(Enum):
 
 
 class MultiAgentPlannerType(Enum):
-    XECBS = "XECBS"
-    ECBS = "ECBS"
     PP = "PP"
-    XCBS = "XCBS"
     CBS = "CBS"
+    ECBS = "ECBS"
+
+    XECBS = "XECBS"
+    XCBS = "XCBS"
+
+    # baselines
+    KCBS = "KCBS"
 
     @classmethod
     def choices(cls):
@@ -42,6 +46,13 @@ class MultiAgentPlannerType(Enum):
 
 class LowerPlannerMethodType(Enum):
     MMD = 'MPDEnsemble'
+    MDOC = 'MDOCEnsemble'
+
+    # baselines
+    WASTAR = 'WASTAR'
+    LATTICE = 'LATTICE'
+    RRT = 'RRT'
+
 
     @classmethod
     def choices(cls):

@@ -17,7 +17,7 @@ from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_l
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble
+from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
@@ -31,6 +31,7 @@ from scripts import (
     LowerPlannerMethodType
 )
 
+TRAINED_MODELS_DIR = '../../data_trained_models/'
 allow_ops_in_compiled_graph()
 device = get_torch_device(params.device)
 print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
@@ -49,9 +50,12 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     if test_config.single_agent_planner_class in ['MDOCEnsemble']:
         from mdoc.config.mdoc_params import MDOCParams as params
         planner_alg = 'mdoc'
-    else:
+    elif test_config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
         planner_alg = 'mmd'
+    else:
+        from mdoc.config.wastar_params import MMPDParams as params
+        planner_alg = 'mmpd'
 
     low_level_planner_model_args = {
         'planner_alg': planner_alg,
@@ -72,7 +76,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'debug': params.debug,
         'seed': params.seed,
         'results_dir': params.results_dir,
-        'trained_models_dir': None,
+        'trained_models_dir': TRAINED_MODELS_DIR,
     }
     if test_config.single_agent_planner_class in ['MDOCEnsemble']:
         low_level_planner_model_args['n_diffusion_steps'] = params.n_diffusion_steps
@@ -82,7 +86,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'is_ecbs': True if test_config.multi_agent_planner_class in ["ECBS", "XECBS"] else False,
         'start_time_l': start_time_l,
         'runtime_limit': test_config.runtime_limit,
-        'conflict_type_to_constraint_types': {PointConflict: {MultiPointConstraint}},
+        'conflict_type_to_constraint_types': {VertexConflict: {VertexConstraint}, EdgeConflict: {EdgeConstraint}} if
+        "WAStar" in test_config.single_agent_planner_class else {PointConflict: {MultiPointConstraint}},
     }
 
     # ============================
@@ -126,6 +131,10 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         low_level_planner_class = MPDEnsemble
     elif test_config.single_agent_planner_class == "MDOCEnsemble":
         low_level_planner_class = MDOCEnsemble
+
+    # baselines
+    elif "WAStar" in test_config.single_agent_planner_class:
+        low_level_planner_class = WAStar
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -153,6 +162,13 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
 
     if test_config.single_agent_planner_class in ["MPD", "MDOC"]:
         low_level_planner_model_args['model_id'] = reference_agent_model_ids[0]
+
+    # baselines
+    if "WAStar" in test_config.single_agent_planner_class:
+        low_level_planner_model_args['delta_q_action_l'] = params.wastar_delta_q_action_l
+        low_level_planner_model_args['discretization'] = torch.tensor(params.wastar_discretization, **tensor_args)
+    if test_config.single_agent_planner_class == "WAStarData":
+        low_level_planner_model_args['is_use_data_cost'] = True
 
     reference_low_level_planner = low_level_planner_class(**low_level_planner_model_args)
     reference_task = reference_low_level_planner.task
@@ -204,6 +220,13 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         if test_config.single_agent_planner_class == "MPD":
             # Set the model_id to the first one.
             low_level_planner_model_args_i['model_id'] = agent_model_ids_l[i][0]
+
+        # baselines
+        if "WAStar" in test_config.single_agent_planner_class:
+            low_level_planner_model_args['delta_q_action_l'] = params.wastar_delta_q_action_l
+            low_level_planner_model_args['discretization'] = torch.tensor(params.wastar_discretization, **tensor_args)
+        if test_config.single_agent_planner_class == "WAStarData":
+            low_level_planner_model_args['is_use_data_cost'] = True
         low_level_planner_l.append(low_level_planner_class(**low_level_planner_model_args_i))
     print('Planners creation time:', time.time() - planners_creation_start_time)
     print("\n\n\n\n")
@@ -381,7 +404,9 @@ def parse_args():
         choices=[
             'MDOCEnsemble',
             'MPDEnsemble',
-            'MPD'
+            'MPD',
+            'WAStar',
+            'WAStarData'
         ],
         help='Single agent planner class'
     )

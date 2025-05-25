@@ -28,6 +28,7 @@ from mdoc.common.experiments import MultiAgentPlanningExperimentConfig
 from mdoc.common.experiments.experiment_utils import *
 from mdoc.config.mmd_params import MMDParams as params
 from launch_multi_agent_experiment import run_multi_agent_experiment
+import torch
 
 
 if __name__ == "__main__":
