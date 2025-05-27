@@ -81,21 +81,22 @@ class SearchState:
 
 
 class WAStar:
-    def __init__(self,
-                 model_ids: tuple,
-                 transforms: Dict[int, torch.tensor],
-                 start_state_pos: torch.tensor,
-                 goal_state_pos: torch.tensor,
-                 delta_q_action_l: List[List[float]],
-                 discretization: torch.tensor,  # Shape (q_dim,).
-                 device: str,
-                 debug: bool,
-                 results_dir: str,
-                 trained_models_dir: str,
-                 w=1,
-                 is_use_data_cost=False,
-                 **kwargs
-                 ):
+    def __init__(
+            self,
+            model_ids: tuple,
+            transforms: Dict[int, torch.tensor],
+            start_state_pos: torch.tensor,
+            goal_state_pos: torch.tensor,
+            delta_q_action_l: List[List[float]],
+            discretization: torch.tensor,  # Shape (q_dim,).
+            device: str,
+            debug: bool,
+            results_dir: str,
+            trained_models_dir: str,
+            w=1,
+            is_use_data_cost=False,
+            **kwargs
+    ):
         self.device = device
         self.debug = debug
         self.results_dir = results_dir
@@ -148,7 +149,7 @@ class WAStar:
             model_dirs.append(model_dir)
             args.append(load_params_from_yaml(os.path.join(model_dir, 'args.yaml')))
 
-            ## Load dataset with env, robot, task ##
+            # Load dataset with env, robot, task #
             train_subset, train_dataloader, val_subset, val_dataloader = get_dataset(
                 dataset_class='TrajectoryDataset',
                 use_extra_objects=True,
