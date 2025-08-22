@@ -50,7 +50,7 @@ class PlannerParams:
             v_set: Tuple[float, ...] = (0.5, 5., 10.),
             a_set: Tuple[float, ...] = (-2., 0., 2.),
             dt: float = 0.2,
-            max_s: float = 60.,
+            max_s: float = 64.,
             max_l: float = 3.,
             robot_radius: float = 0.5,
             device: str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -155,7 +155,6 @@ class LatticePlanner:
                         continue
                     end_pose = torch.tensor([self.s_vals[j_s], self.l_vals[j_l], 0., 0.], device=self.device)
                     coeffs, L = _cubic_spiral_coeffs(start_pose, end_pose)
-                    print(coeffs, L)
 
                     # sample 40 pts along curve in world coordinates ≈ (s,ℓ)
                     s_samp = torch.linspace(0., L, 40, device=self.device)
@@ -283,67 +282,67 @@ common_params = PlannerParams(
 empty_env = Env2D(lambda pts: torch.full((pts.size(0),), 10.0, device=pts.device), dyn_obstacles=[])
 planner0 = LatticePlanner(common_params, empty_env)
 path0 = planner0.plan()                                 # baseline path
-s0, l0 = np.array(path0).T
-t0 = np.arange(len(s0)) * ds_val / v_nominal
-
-# -------- 2. Plan with obstacles --------
-dyn_obs = [(30.0, 0.0, 6.0, 0.5)]                      # (x, y, t, r)
-obst_env = Env2D(lambda pts: torch.full((pts.size(0),), 10.0, device=pts.device), dyn_obstacles=dyn_obs)
-
-planner1 = LatticePlanner(common_params, obst_env)
-path1 = planner1.plan()                                 # avoidance path
-s1, l1 = np.array(path1).T
-t1 = np.arange(len(s1)) * ds_val / v_nominal
-
-# safety test
-x_o, y_o, t_o, r_o = dyn_obs[0]
-d_space = np.hypot(s1 - x_o, l1 - y_o) - (r_o + robot_r)
-safe_mask = np.logical_or(d_space > 0, np.abs(t1 - t_o) > 1e-4)
-
-fig2d, ax2d = plt.subplots(figsize=(9,3))
-ax2d.plot(s0, l0, '-k', lw=2, label='No-obstacle path')
-ax2d.plot(s1, l1, '-ob', ms=4, label='With-obstacle path')
-ax2d.add_patch(plt.Circle((x_o, y_o), r_o, fc='none', ec='r', ls='--', lw=1.5))
-ax2d.set_xlabel("s (m)"); ax2d.set_ylabel("ℓ (m)")
-ax2d.set_title("2-D projection: paths comparison")
-ax2d.axis('equal'); ax2d.grid(True); ax2d.legend()
-
-fig3d = plt.figure(figsize=(7,5))
-ax3d = fig3d.add_subplot(111, projection='3d')
-ax3d.plot(s0, l0, t0, lw=2, c='k', label='No-obstacle')
-ax3d.plot(s1, l1, t1, lw=2, c='b', label='With-obstacle')
-ax3d.scatter(x_o, y_o, t_o, s=250, c='r', alpha=0.7, label='Pedestrian')
-ax3d.plot([x_o, x_o], [y_o, y_o], [t_o-0.3, t_o+0.3], 'r--', lw=1)
-ax3d.set_xlabel('s (m)'); ax3d.set_ylabel('ℓ (m)'); ax3d.set_zlabel('time (s)')
-ax3d.set_title("3-D space-time comparison")
-ax3d.legend()
-
-plt.tight_layout()
-plt.show()
-
-SAVE_GIF = True
-if SAVE_GIF:
-    from matplotlib.animation import FuncAnimation, PillowWriter
-    fig, ax = plt.subplots(figsize=(9,3))
-    ax.set_xlim(0, max(s1.max(), s0.max())+1); ax.set_ylim(-1.5, 1.5)
-    ax.set_xlabel("s (m)"); ax.set_ylabel("ℓ (m)")
-    ax.set_title("Time-synchronized view")
-    ax.plot(s0, l0, lw=1, color='0.7')
-    ax.plot(s1, l1, lw=1, color='0.4')
-    ped_circle = plt.Circle((x_o, y_o), r_o, fc='none', ec='r', ls='--', lw=1.5)
-    ax.add_patch(ped_circle)
-    robot_dot0, = ax.plot([], [], 'ko', ms=6)
-    robot_dot1, = ax.plot([], [], 'bo', ms=6)
-    time_txt = ax.text(0.02, 0.95, '', transform=ax.transAxes)
-
-    frames = max(len(t0), len(t1))
-    def update(i):
-        if i < len(t0):
-            robot_dot0.set_data(s0[i], l0[i])
-        if i < len(t1):
-            robot_dot1.set_data(s1[i], l1[i])
-        time_txt.set_text(f"t ≈ {i*ds_val/v_nominal:.1f} s")
-        return robot_dot0, robot_dot1, time_txt
-    ani = FuncAnimation(fig, update, frames=frames, interval=50, blit=True)
-    ani.save("lattice.gif", dpi=120, writer=PillowWriter())
-    print("saved lattice.gif")
+# s0, l0 = np.array(path0).T
+# t0 = np.arange(len(s0)) * ds_val / v_nominal
+#
+# # -------- 2. Plan with obstacles --------
+# dyn_obs = [(30.0, 0.0, 6.0, 0.5)]                      # (x, y, t, r)
+# obst_env = Env2D(lambda pts: torch.full((pts.size(0),), 10.0, device=pts.device), dyn_obstacles=dyn_obs)
+#
+# planner1 = LatticePlanner(common_params, obst_env)
+# path1 = planner1.plan()                                 # avoidance path
+# s1, l1 = np.array(path1).T
+# t1 = np.arange(len(s1)) * ds_val / v_nominal
+#
+# # safety test
+# x_o, y_o, t_o, r_o = dyn_obs[0]
+# d_space = np.hypot(s1 - x_o, l1 - y_o) - (r_o + robot_r)
+# safe_mask = np.logical_or(d_space > 0, np.abs(t1 - t_o) > 1e-4)
+#
+# fig2d, ax2d = plt.subplots(figsize=(9,3))
+# ax2d.plot(s0, l0, '-k', lw=2, label='No-obstacle path')
+# ax2d.plot(s1, l1, '-ob', ms=4, label='With-obstacle path')
+# ax2d.add_patch(plt.Circle((x_o, y_o), r_o, fc='none', ec='r', ls='--', lw=1.5))
+# ax2d.set_xlabel("s (m)"); ax2d.set_ylabel("ℓ (m)")
+# ax2d.set_title("2-D projection: paths comparison")
+# ax2d.axis('equal'); ax2d.grid(True); ax2d.legend()
+#
+# fig3d = plt.figure(figsize=(7,5))
+# ax3d = fig3d.add_subplot(111, projection='3d')
+# ax3d.plot(s0, l0, t0, lw=2, c='k', label='No-obstacle')
+# ax3d.plot(s1, l1, t1, lw=2, c='b', label='With-obstacle')
+# ax3d.scatter(x_o, y_o, t_o, s=250, c='r', alpha=0.7, label='Pedestrian')
+# ax3d.plot([x_o, x_o], [y_o, y_o], [t_o-0.3, t_o+0.3], 'r--', lw=1)
+# ax3d.set_xlabel('s (m)'); ax3d.set_ylabel('ℓ (m)'); ax3d.set_zlabel('time (s)')
+# ax3d.set_title("3-D space-time comparison")
+# ax3d.legend()
+#
+# plt.tight_layout()
+# plt.show()
+#
+# SAVE_GIF = True
+# if SAVE_GIF:
+#     from matplotlib.animation import FuncAnimation, PillowWriter
+#     fig, ax = plt.subplots(figsize=(9,3))
+#     ax.set_xlim(0, max(s1.max(), s0.max())+1); ax.set_ylim(-1.5, 1.5)
+#     ax.set_xlabel("s (m)"); ax.set_ylabel("ℓ (m)")
+#     ax.set_title("Time-synchronized view")
+#     ax.plot(s0, l0, lw=1, color='0.7')
+#     ax.plot(s1, l1, lw=1, color='0.4')
+#     ped_circle = plt.Circle((x_o, y_o), r_o, fc='none', ec='r', ls='--', lw=1.5)
+#     ax.add_patch(ped_circle)
+#     robot_dot0, = ax.plot([], [], 'ko', ms=6)
+#     robot_dot1, = ax.plot([], [], 'bo', ms=6)
+#     time_txt = ax.text(0.02, 0.95, '', transform=ax.transAxes)
+#
+#     frames = max(len(t0), len(t1))
+#     def update(i):
+#         if i < len(t0):
+#             robot_dot0.set_data(s0[i], l0[i])
+#         if i < len(t1):
+#             robot_dot1.set_data(s1[i], l1[i])
+#         time_txt.set_text(f"t ≈ {i*ds_val/v_nominal:.1f} s")
+#         return robot_dot0, robot_dot1, time_txt
+#     ani = FuncAnimation(fig, update, frames=frames, interval=50, blit=True)
+#     ani.save("lattice.gif", dpi=120, writer=PillowWriter())
+#     print("saved lattice.gif")

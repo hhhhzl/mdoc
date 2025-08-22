@@ -48,41 +48,40 @@ if __name__ == "__main__":
 
     multi_goal_states = goal_state.unsqueeze(0)
 
-    n_support_points = 64
+    n_support_points = 128
     dt = 0.04
-
-    opt_iters = 20
-
-    mppi_params = dict(
-        num_ctrl_samples=64,
-        rollout_steps=n_support_points,
-        control_std=[0.15, 0.15],
-        temp=1.,
-        opt_iters=1,
-        step_size=1.,
-        cov_prior_type='const_ctrl',
-        tensor_args=tensor_args,
-    )
+    opt_iters = 50
 
     system_params = dict(
-        rollout_steps=mppi_params['rollout_steps'],
-        control_dim=robot.q_dim,
-        state_dim=robot.q_dim,
+        rollout_steps=n_support_points,
+        control_dim=robot.q_dim,  # 2
+        state_dim=robot.q_dim,  # 2
         dt=dt,
-        discount=1.,
+        discount=1.0,
         goal_state=goal_state,
-        ctrl_min=[-100, -100],
-        ctrl_max=[100, 100],
+        ctrl_min=[-1.2, -1.2],
+        ctrl_max=[1.2, 1.2],
         verbose=False,
         c_weights={
-            'pos': 1.,
-            'vel': 1.,
-            'ctrl': 1.,
-            'pos_T': 1000.,
+            'pos': 0.1,
+            'vel': 0.,
+            'ctrl': 0.05,
+            'pos_T': 5000.,
             'vel_T': 0.,
         },
         tensor_args=tensor_args,
     )
+    mppi_params = dict(
+        num_ctrl_samples=512,
+        rollout_steps=n_support_points,
+        control_std=[0.4, 0.4],
+        temp=0.5,
+        opt_iters=1,
+        step_size=0.8,
+        cov_prior_type='const_ctrl',
+        tensor_args=tensor_args,
+    )
+
     system = PointParticleDynamics(**system_params)
     planner = MPPI(system, **mppi_params)
 
@@ -104,8 +103,6 @@ if __name__ == "__main__":
         robot, n_support_points, cost_func_list,
         tensor_args=tensor_args
     )
-
-
 
     # Optimize
     observation = {
