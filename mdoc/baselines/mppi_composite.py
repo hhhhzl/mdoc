@@ -395,7 +395,7 @@ if __name__ == "__main__":
         None,
         start_l,
         goal_l,
-        n_support_points=32,
+        n_support_points=128,
         dt=0.04,
         opt_iters=60,
         num_ctrl_samples=64,
