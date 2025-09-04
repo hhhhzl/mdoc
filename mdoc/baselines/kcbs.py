@@ -19,7 +19,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib import animation
-from PIL import Image
 
 
 # --------------------------
@@ -246,7 +245,8 @@ def steer_and_propagate_single(p_from: np.ndarray, t_from: float, p_to_hint: np.
     c, s = math.cos(theta), math.sin(theta)
     R = np.array([[c, -s], [s, c]])
     heading = (R @ heading.reshape(2, 1)).ravel()
-    if np.linalg.norm(heading) < 1e-9: heading = np.array([1.0, 0.0])
+    if np.linalg.norm(heading) < 1e-9:
+        heading = np.array([1.0, 0.0])
     v = params.v_max
     u = heading * v
     K = random.randint(params.K_min, params.K_max)
@@ -285,10 +285,13 @@ def rrt_plan_single(
         idx = tree.nearest_index(p_rand)
         node = tree.nodes[idx]
         pts, ts = steer_and_propagate_single(node.pos, node.t, p_rand, params)
-        if ts[-1] > params.t_max: continue
-        if not is_valid_segment_single(pts, ts, world, params.dt_check, path_constraints): continue
+        if ts[-1] > params.t_max:
+            continue
+        if not is_valid_segment_single(pts, ts, world, params.dt_check, path_constraints):
+            continue
         new_node = Node(pos=pts[-1], t=float(ts[-1]), parent=idx)
         tree.add(new_node)
+
         if np.linalg.norm(new_node.pos - goal) <= params.goal_radius:
             # reconstruct
             path_pos = [new_node.pos]
@@ -333,8 +336,14 @@ def steer_and_propagate_multi(P_from: np.ndarray, t_from: float, goals: np.ndarr
     return np.stack(Pts, axis=0), np.array(Ts)
 
 
-def rrt_plan_joint(starts: np.ndarray, goals: np.ndarray, world: World, params: RRTParams,
-                   path_constraints: List[PathObstacle], seed: int = 0):
+def rrt_plan_joint(
+        starts: np.ndarray,
+        goals: np.ndarray,
+        world: World,
+        params: RRTParams,
+        path_constraints: List[PathObstacle],
+        seed: int = 0
+):
     # starts: (m,2), goals: (m,2)
     random.seed(seed)
     np.random.seed(seed)
@@ -357,8 +366,10 @@ def rrt_plan_joint(starts: np.ndarray, goals: np.ndarray, world: World, params: 
         node = tree.nodes[idx]
         P_from = node.pos.reshape(m, 2)
         Pts, Ts = steer_and_propagate_multi(P_from, node.t, goals, params)
-        if Ts[-1] > params.t_max: continue
-        if not is_valid_segment_multi(Pts, Ts, world, params.dt_check, path_constraints): continue
+        if Ts[-1] > params.t_max:
+            continue
+        if not is_valid_segment_multi(Pts, Ts, world, params.dt_check, path_constraints):
+            continue
         new_node = Node(pos=Pts[-1].flatten(), t=float(Ts[-1]), parent=idx)
         tree.add(new_node)
         # goal check: all within radius
@@ -655,7 +666,6 @@ def build_agents_three() -> List[AgentSpec]:
 world = build_world()
 agents = build_agents_three()
 params = RRTParams(n_iter=7000, t_max=60.0, dt_check=0.03, goal_radius=0.7, prob_goal_bias=0.2)
-
 plans = kcbs_with_merge(agents, world, params, merge_threshold=2, max_nodes=100, seed=5)
 
 
