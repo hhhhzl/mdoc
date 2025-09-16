@@ -65,6 +65,42 @@ class World:
     moving_obstacles: List[MovingCircle]
     robot_radius: float = 0.25
 
+# --------------------------
+# Trees / RRT parameters
+# --------------------------
+@dataclass
+class Node:
+    pos: np.ndarray  # (d,) or concatenated (2*m,)
+    t: float
+    parent: Optional[int]
+
+
+@dataclass
+class Tree:
+    nodes: List[Node]
+
+    def add(self, node: Node) -> int:
+        self.nodes.append(node)
+        return len(self.nodes) - 1
+
+    def nearest_index(self, point: np.ndarray) -> int:
+        pts = np.array([n.pos for n in self.nodes])
+        d2 = np.sum((pts - point) ** 2, axis=1)
+        return int(np.argmin(d2))
+
+
+@dataclass
+class RRTParams:
+    dt: float = 0.1
+    v_max: float = 0.04
+    K_min: int = 6
+    K_max: int = 16
+    n_iter: int = 7000
+    goal_radius: float = 0.02
+    prob_goal_bias: float = 0.2
+    dt_check: float = 0.03
+    t_max: float = 60.0
+
 
 # --------------------------
 # Utility
@@ -96,43 +132,6 @@ def slice_polyline_by_time(pos: np.ndarray, ts: np.ndarray, t0: float, t1: float
     ks = np.array(ks, dtype=float)
     pts = np.stack([interp_path(pos, ts, t) for t in ks], axis=0)
     return pts, ks
-
-
-# --------------------------
-# Trees / RRT parameters
-# --------------------------
-@dataclass
-class Node:
-    pos: np.ndarray  # (d,) or concatenated (2*m,)
-    t: float
-    parent: Optional[int]
-
-
-@dataclass
-class Tree:
-    nodes: List[Node]
-
-    def add(self, node: Node) -> int:
-        self.nodes.append(node)
-        return len(self.nodes) - 1
-
-    def nearest_index(self, point: np.ndarray) -> int:
-        pts = np.array([n.pos for n in self.nodes])
-        d2 = np.sum((pts - point) ** 2, axis=1)
-        return int(np.argmin(d2))
-
-
-@dataclass
-class RRTParams:
-    dt: float = 0.12
-    v_max: float = 1.8
-    K_min: int = 6
-    K_max: int = 16
-    n_iter: int = 7000
-    goal_radius: float = 0.6
-    prob_goal_bias: float = 0.2
-    dt_check: float = 0.03
-    t_max: float = 60.0
 
 
 # --------------------------
@@ -265,7 +264,8 @@ def steer_and_propagate_single(p_from: np.ndarray, t_from: float, p_to_hint: np.
 def rrt_plan_single(
         start: np.ndarray,
         goal: np.ndarray,
-        world: World, params: RRTParams,
+        world: World,
+        params: RRTParams,
         path_constraints: List[PathObstacle],
         seed: int = 0
 ):
@@ -663,10 +663,10 @@ def build_agents_three() -> List[AgentSpec]:
 # --------------------------
 # Run planner
 # --------------------------
-world = build_world()
-agents = build_agents_three()
-params = RRTParams(n_iter=7000, t_max=60.0, dt_check=0.03, goal_radius=0.7, prob_goal_bias=0.2)
-plans = kcbs_with_merge(agents, world, params, merge_threshold=2, max_nodes=100, seed=5)
+# world = build_world()
+# agents = build_agents_three()
+# params = RRTParams(n_iter=7000, t_max=60.0, dt_check=0.03, goal_radius=0.7, prob_goal_bias=0.2)
+# plans = kcbs_with_merge(agents, world, params, merge_threshold=2, max_nodes=100, seed=5)
 
 
 # --------------------------
@@ -685,31 +685,6 @@ def draw_world(ax, world: World):
     ax.plot(centers[:, 0], centers[:, 1], linestyle='--')
     for c in centers[::5]:
         ax.add_patch(Circle(c, m.radius, fill=False, linestyle=':'))
-
-
-# Static plot
-fig, ax = plt.subplots(figsize=(6.4, 6.4))
-ax.set_title("KCBS with Time-Window Constraints + Merge (static solution)")
-draw_world(ax, world)
-if plans is not None:
-    # plot starts/goals
-    for i, ag in enumerate(agents):
-        ax.plot(ag.start[0], ag.start[1], marker='o', markersize=6)
-        ax.plot(ag.goal[0], ag.goal[1], marker='*', markersize=10)
-    # plot each entity plan
-    for ent_id, EP in plans.items():
-        if EP.pos is None: continue
-        if EP.is_group:
-            # draw each member path
-            for r in range(EP.pos.shape[1]):
-                ax.plot(EP.pos[:, r, 0], EP.pos[:, r, 1], linewidth=2.5)
-        else:
-            ax.plot(EP.pos[:, 0], EP.pos[:, 1], linewidth=2.5)
-else:
-    ax.text(0.5, 0.95, "No joint solution", transform=ax.transAxes, ha="center")
-plt.tight_layout()
-static_path = "kcbs_merge_static.png"
-plt.savefig(static_path)
 
 
 # Animated GIF
@@ -762,9 +737,33 @@ def animate_solution(
     ani.save(out_path, writer=animation.PillowWriter(fps=int(1.0 / dt)))
     plt.close(fig)
 
+# Static plot
+# fig, ax = plt.subplots(figsize=(6.4, 6.4))
+# ax.set_title("KCBS with Time-Window Constraints + Merge (static solution)")
+# draw_world(ax, world)
+# if plans is not None:
+#     # plot starts/goals
+#     for i, ag in enumerate(agents):
+#         ax.plot(ag.start[0], ag.start[1], marker='o', markersize=6)
+#         ax.plot(ag.goal[0], ag.goal[1], marker='*', markersize=10)
+#     # plot each entity plan
+#     for ent_id, EP in plans.items():
+#         if EP.pos is None: continue
+#         if EP.is_group:
+#             # draw each member path
+#             for r in range(EP.pos.shape[1]):
+#                 ax.plot(EP.pos[:, r, 0], EP.pos[:, r, 1], linewidth=2.5)
+#         else:
+#             ax.plot(EP.pos[:, 0], EP.pos[:, 1], linewidth=2.5)
+# else:
+#     ax.text(0.5, 0.95, "No joint solution", transform=ax.transAxes, ha="center")
+# plt.tight_layout()
+# static_path = "kcbs_merge_static.png"
+# plt.savefig(static_path)
 
-if plans is not None:
-    gif_path = "kcbs_solution.gif"
-    animate_solution(world, agents, plans, gif_path)
-else:
-    gif_path = None
+
+# if plans is not None:
+#     gif_path = "kcbs_solution.gif"
+#     animate_solution(world, agents, plans, gif_path)
+# else:
+#     gif_path = None

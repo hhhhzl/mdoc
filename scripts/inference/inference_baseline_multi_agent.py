@@ -11,27 +11,25 @@ import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
 
 # Project imports.
-from torch_robotics.robots import *
 from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torch_model_params
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints, \
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar
+from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar, KCBSLower
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
 from mdoc.common import get_start_goal_pos_circle
 from mdoc.common.pretty_print import *
 from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, get_result_dir_from_trial_config, TrialSuccessStatus
-
 from scripts import (
     MultiAgentPlannerType,
     EnvironmentType,
     LowerPlannerMethodType
 )
 
-TRAINED_MODELS_DIR = '../../data_trained_models/'
+TRAINED_MODELS_DIR = './data_trained_models/'
 allow_ops_in_compiled_graph()
 device = get_torch_device(params.device)
 print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
@@ -53,9 +51,12 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     elif test_config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
         planner_alg = 'mmd'
-    else:
+    elif test_config.single_agent_planner_class == 'WAStar':
         from mdoc.config.wastar_params import MMPDParams as params
-        planner_alg = 'mmpd'
+        planner_alg = 'wastar'
+    elif test_config.single_agent_planner_class == 'KCBSLower':
+        from mdoc.config.wastar_params import MMPDParams as params
+        planner_alg = 'kcbs'
 
     low_level_planner_model_args = {
         'planner_alg': planner_alg,
@@ -135,6 +136,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # baselines
     elif "WAStar" in test_config.single_agent_planner_class:
         low_level_planner_class = WAStar
+    elif "KCBSLower" in test_config.single_agent_planner_class:
+        low_level_planner_class = KCBSLower
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -234,7 +237,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # ============================
     # Create the multi agent planner.
     # ============================
-    if (test_config.multi_agent_planner_class in ["XECBS", "ECBS", "XCBS", "CBS"]):
+    if test_config.multi_agent_planner_class in ["XECBS", "ECBS", "XCBS", "CBS"]:
         multi_agent_planner_class = CBS
     elif test_config.multi_agent_planner_class == "PP":
         multi_agent_planner_class = PrioritizedPlanning
@@ -362,7 +365,9 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Multi-agent planning configuration')
+    parser = argparse.ArgumentParser(
+        description='Multi-Agent Motion Planning Baselines Configuration'
+    )
 
     # General arguments
     parser.add_argument(
@@ -375,7 +380,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=3,
+        default=5,
         help='Number of agents'
     )
     parser.add_argument(
@@ -400,7 +405,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='MDOCEnsemble',
+        default='KCBSLower',
         choices=[
             'KCBSLower',
             'Lattice',
@@ -434,6 +439,7 @@ def parse_args():
         type=str,
         default='EnvEmptyNoWait2D-RobotPlanarDisk',
         choices=[
+            ''
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
             'EnvConveyor2D-RobotPlanarDisk',

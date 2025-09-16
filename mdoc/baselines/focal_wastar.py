@@ -1,7 +1,6 @@
 """
 """
 # TODO(yorai): param for allowing/not re-expansions.
-
 # General imports.
 import heapq
 import itertools
@@ -9,10 +8,8 @@ import os
 import pickle
 import time
 from typing import List, Dict
-import torch
 import numpy as np
 from tqdm import tqdm
-
 from mdoc.planners.single_agent import PlannerOutput
 # Project imports.
 from mdoc.utils.loading import load_params_from_yaml
@@ -208,28 +205,6 @@ class WAStar:
                     if q_new_coord not in cell_heuristic:
                         heapq.heappush(Q, (h + 1, q_new_coord))
         self.cell_heuristic = cell_heuristic
-        print("Heuristic created.")
-
-        # # Visualize.
-        # import matplotlib.pyplot as plt
-        # fig, ax = plt.subplots()
-        # for q_coord in cell_heuristic:
-        #     q = self.get_q_from_grid_coord(q_coord)
-        #     h_value = cell_heuristic[q_coord]
-        #     ax.scatter(q[0].cpu().numpy(), q[1].cpu().numpy(), c='blue', s=10, alpha=min(1, h_value/50))
-        # ax.set_aspect('equal')
-        # ax.set_xlim([-1, 1])
-        # ax.set_ylim([-1, 1])
-        # plt.show()
-
-        # Create a data cost map.
-        # Steps to create the transition cost map:
-        # Iterating over the trajectory dataset, for each trajectory:
-        # 1. Move state by state.
-        # 2. Increment the costmap entry for the current state and the next state.
-        # After, normalize the costmap. cell = cell / max(cell).
-        # Flip such that most traveled paths are the least costly. cell = 1 - cell.
-        # Add 1 to have a minimum cost of 1. cell = cell + 1.
         transition_cost_data = {}
         # Fill with zeros.
         for q in itertools.product(*[
