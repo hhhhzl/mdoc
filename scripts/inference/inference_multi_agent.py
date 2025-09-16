@@ -11,7 +11,6 @@ import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
 
 # Project imports.
-from torch_robotics.robots import *
 from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torch_model_params
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints, \
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
@@ -31,7 +30,7 @@ from scripts import (
     LowerPlannerMethodType
 )
 
-TRAINED_MODELS_DIR = '../../data_trained_models/'
+TRAINED_MODELS_DIR = './data_trained_models/'
 allow_ops_in_compiled_graph()
 device = get_torch_device(params.device)
 print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")

@@ -13,3 +13,4 @@ from .env_highways_2d import *
 from .env_highways_2d_extra_objects import *
 from .env_empty_nowait_2d import *
 from .env_empty_nowait_2d_extra_objects import *
+from .env_dense_2d import *

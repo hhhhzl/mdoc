@@ -1,13 +1,18 @@
+import os
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 import numpy as np
 import torch
-from kcbs import World, RRTParams, rrt_plan_single
+import itertools
+from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 # --------------------------------------------------------------
+from mdoc.baselines.kcbs import World, RRTParams, rrt_plan_single
 from mdoc.common.experiences import PathBatchExperience
-from mdoc.common.constraints import MultiPointConstraint, CostConstraint
+from mdoc.common.constraints import MultiPointConstraint
 from mdoc.planners.common import PlannerOutput
 from mdoc.common import smooth_trajs
+from mdoc.utils.loading import load_params_from_yaml
+from mdoc.trainer import get_dataset
 
 
 @dataclass
@@ -29,31 +34,97 @@ class PathObstacle:
 
 
 # https://arxiv.org/pdf/2207.00576
-# lower planner for Conflict-based Search for Multi-Robot Motion Planning with Kinodynamic Constraints
-class ConstrainedX:
+# lower planner for Conflict-based Search for Multi-Robot Motion Planning with Kinodynamic Constraints (ConstrainedX)
+class KCBSLower:
     def __init__(
             self,
-            world: World,
-            rrt_params: Optional[RRTParams] = None,
-            robot=None,
-            task=None,
-            device: str = "cpu",
-            results_dir: str = "./results",
+            model_ids: tuple,
+            transforms: Dict[int, torch.tensor],
+            start_state_pos: torch.tensor,
+            goal_state_pos: torch.tensor,
+            debug: bool,
+            trained_models_dir: str,
+            device: str,
+            results_dir: str,
             seed: int = 0,
             q_is_workspace: bool = True,
             q_xy_index: tuple = (0, 1),
-            default_ob_radius: float = 0.25
+            default_ob_radius: float = 0.25,
+            **kwargs
     ):
-        self.world = world
-        self.params = rrt_params or RRTParams()
-        self.robot = robot
-        self.task = task
-        self.tensor_args = {"device": torch.device(device), "dtype": torch.float32}
+        self.device = device
+        self.debug = debug
         self.results_dir = results_dir
+        self.model_ids = model_ids
+        self.transforms = transforms
+        self.tensor_args = {'device': self.device, 'dtype': torch.float32}
+        self.results_dir = results_dir
+        self.trained_models_dir = trained_models_dir
+
+        self.q_start = start_state_pos.to(**self.tensor_args).squeeze(0)
+        self.q_goal = goal_state_pos.to(**self.tensor_args).squeeze(0)
+        # Transform to their tiles.
+        self.q_start = self.q_start + self.transforms[0]
+        self.q_goal = self.q_goal + self.transforms[len(self.transforms) - 1]
+
+        print("[KCBS] Start state: ", self.q_start)
+        print("[KCBS] Goal state: ", self.q_goal)
+
+        model_dirs, results_dirs, args = [], [], []
+        self.models, tasks = {}, {}
+        self.guides = {}
+        datasets = []
+        for j, model_id in enumerate(model_ids):
+            model_dir = os.path.join(trained_models_dir, model_id)
+            model_dirs.append(model_dir)
+            args.append(load_params_from_yaml(os.path.join(model_dir, 'args.yaml')))
+
+            # Load dataset with env, robot, task #
+            train_subset, train_dataloader, val_subset, val_dataloader = get_dataset(
+                dataset_class='TrajectoryDataset',
+                use_extra_objects=True,
+                obstacle_cutoff_margin=0.01,
+                **args[-1],
+                tensor_args=self.tensor_args
+            )
+            dataset = train_subset.dataset
+            datasets.append(dataset)
+            robot = dataset.robot
+            # We hack the radius of robots to be a bit smaller such that they are allowed to be tangent to each other.
+            robot.radius *= 0.9
+            if j == 0:
+                self.robot = robot
+            task = dataset.task
+            tasks[j] = task
+
+        self.task = PlanningTaskEnsemble(
+            tasks,
+            transforms,
+            tensor_args=self.tensor_args
+        )
+
+        # Get the q limits from the robot. This is a tensor of shape (q_dim, 2).
+        self.q_limits = self.task.ws_limits
+
+        self.world = self._build_world_from_model()
+        self.rrt_params = RRTParams()
         self.seed = seed
         self.q_is_workspace = q_is_workspace
         self.q_xy_index = q_xy_index
         self.default_ob_radius = default_ob_radius
+
+    def _build_world_from_model(self) -> World:
+        limits = self.q_limits.detach().cpu().numpy()
+        x_min, y_min = float(limits[0, 0]), float(limits[0, 1])
+        x_max, y_max = float(limits[1, 0]), float(limits[1, 1])
+        robot_radius = float(self.robot.radius)
+
+        return World(
+            bounds=((x_min, x_max), (y_min, y_max)),
+            static_obstacles=[],
+            moving_obstacles=[],
+            robot_radius=robot_radius
+        )
 
     def _constraints_to_path_obstacles(
             self, constraints_l: Optional[List]
@@ -84,13 +155,13 @@ class ConstrainedX:
                     pts = np.stack([xy, xy], axis=0)
                     rad = float(r) if r is not None else self.default_ob_radius
                     path_obs.append(PathObstacle(ts=ts, pts=pts, radius=rad))
-            elif isinstance(c, CostConstraint):
-                for (q, (t0, t1), r) in zip(c.qs, c.traj_ranges, c.radii):
-                    xy = q_to_xy(q)
-                    ts = np.array([float(t0), float(t1)], dtype=float)
-                    pts = np.stack([xy, xy], axis=0)
-                    rad = float(r) if r is not None else self.default_ob_radius
-                    path_obs.append(PathObstacle(ts=ts, pts=pts, radius=rad))
+            # elif isinstance(c, CostConstraint):
+            #     for (q, (t0, t1), r) in zip(c.qs, c.traj_ranges, c.radii):
+            #         xy = q_to_xy(q)
+            #         ts = np.array([float(t0), float(t1)], dtype=float)
+            #         pts = np.stack([xy, xy], axis=0)
+            #         rad = float(r) if r is not None else self.default_ob_radius
+            #         path_obs.append(PathObstacle(ts=ts, pts=pts, radius=rad))
             else:
                 pass
         return path_obs
@@ -100,7 +171,7 @@ class ConstrainedX:
             start_state_pos: torch.Tensor,
             goal_state_pos: torch.Tensor,
             constraints_l: Optional[List] = None,
-            experience: Optional[PathBatchExperience] = None,  # RRT 不用，但保持签名一致
+            experience: Optional[PathBatchExperience] = None,
             *args, **kwargs
     ) -> PlannerOutput:
         def tens2xy(t: torch.Tensor) -> np.ndarray:
@@ -121,7 +192,7 @@ class ConstrainedX:
             start=start_xy,
             goal=goal_xy,
             world=self.world,
-            params=self.params,
+            params=self.rrt_params,
             path_constraints=path_obs,
             seed=self.seed
         )
