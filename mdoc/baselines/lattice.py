@@ -1,16 +1,314 @@
-# -*- coding: utf-8 -*-
 """
 Lattice planner — cubic-spiral + quadrant + collision-aware A*
 =============================================================
 ----------------------------------
 """
+
 from __future__ import annotations
+import os
 import math
 import heapq
-from typing import Tuple, List, Dict, Optional, Sequence
-import torch
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Sequence, Tuple
+
+from torch_robotics.environments import *
+from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
+
+from mdoc.common.experiences import PathBatchExperience
+from mdoc.common.constraints import MultiPointConstraint
+from mdoc.planners.common import PlannerOutput
+from mdoc.common import smooth_trajs
+from mdoc.utils.loading import load_params_from_yaml
+from mdoc.trainer import get_dataset
+
+@dataclass
+class PathObstacle:
+    ts: np.ndarray  # (L,)
+    pts: np.ndarray  # (L,2)
+    radius: float
+
+    def center_at(self, t: float) -> np.ndarray:
+        if t <= self.ts[0]:
+            return self.pts[0]
+        if t >= self.ts[-1]:
+            return self.pts[-1]
+        k = np.searchsorted(self.ts, t, side="right") - 1
+        k = max(0, min(k, len(self.ts) - 2))
+        t0, t1 = self.ts[k], self.ts[k + 1]
+        a = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
+        return (1 - a) * self.pts[k] + a * self.pts[k + 1]
+
+class EnvWrapper:
+    """
+    Wraps a torch_robotics EnvBase (e.g., EnvEmptyNoWait2D) to expose:
+      - sdf(pts: [N,2]) -> [N]   via compute_sdf
+      - dynamic_safe(pts: [N,2], ts: [N], margin: float) -> bool
+    """
+    def __init__(self, tr_env, dyn_obstacles=None):
+        self.tr_env = tr_env
+        self.dyn_obs = dyn_obstacles or []  # list[(x, y, t, r)]
+
+    def sdf(self, pts: torch.Tensor) -> torch.Tensor:
+        # EnvBase.compute_sdf expects [N,1,dim]; return flattened [N]
+        if pts.dim() == 2:
+            pts_in = pts.unsqueeze(1)  # [N,1,2]
+        elif pts.dim() == 3 and pts.size(1) == 1:
+            pts_in = pts
+        else:
+            raise ValueError(f"Expected [N,2] or [N,1,2], got {pts.shape}")
+        sdf = self.tr_env.compute_sdf(pts_in)
+        return sdf.view(-1)
+
+    def dynamic_safe(self, pts: torch.Tensor, ts: torch.Tensor, margin: float) -> bool:
+        """Safe if each point is either far from every obstacle in space or far in time."""
+        if not self.dyn_obs:
+            return True
+        device = pts.device
+        obs = torch.tensor(self.dyn_obs, device=device, dtype=pts.dtype)  # [M,4] (x,y,t,r)
+        obs_xy = obs[:, :2]                                              # [M,2]
+        obs_t = obs[:, 2]                                               # [M]
+        obs_r = obs[:, 3]                                               # [M]
+
+        # space distance from each point to each obstacle center
+        d_space = torch.cdist(pts.unsqueeze(0), obs_xy.unsqueeze(0)).squeeze(0)  # [N,M]
+        # time difference
+        d_time = (ts.unsqueeze(1) - obs_t).abs()                                   # [N,M]
+        # safe if outside obstacle radius+margin OR not at the same time
+        ok = ((d_space - obs_r) > margin) | (d_time > 1e-3)
+        return ok.all().item()
+
+    # optional: forward other attributes you might read (limits, dim, etc.)
+    def __getattr__(self, name):
+        return getattr(self.tr_env, name)
 
 
+class LatticeLower:
+    def __init__(
+            self,
+            model_ids: tuple,
+            transforms: Dict[int, torch.tensor],
+            start_state_pos: torch.tensor,
+            goal_state_pos: torch.tensor,
+            debug: bool,
+            trained_models_dir: str,
+            device: str,
+            results_dir: str,
+
+            seed: int = 0,
+            q_is_workspace: bool = True,
+            q_xy_index: tuple = (0, 1),
+            default_ob_radius: float = 0.25,
+            lattice_ds: float = 1.0,
+            lattice_dl: float = 0.5,
+            lattice_dt: float = 0.02,
+            lattice_max_s: float = 64.0,
+            lattice_max_l: float = 3.0,
+            lattice_v_set: Sequence[float] = (5.0,),  # default as constant
+            lattice_a_set: Sequence[float] = (-2., 0., 2.),
+            **kwargs
+    ):
+        self.device = device
+        self.debug = debug
+        self.results_dir = results_dir
+        self.model_ids = model_ids
+        self.transforms = transforms
+        self.tensor_args = {'device': self.device, 'dtype': torch.float32}
+        self.trained_models_dir = trained_models_dir
+        self.seed = seed
+        self.q_is_workspace = q_is_workspace
+        self.q_xy_index = q_xy_index
+        self.default_ob_radius = default_ob_radius
+
+        self.q_start = start_state_pos.to(**self.tensor_args).squeeze(0) + self.transforms[0]
+        self.q_goal = goal_state_pos.to(**self.tensor_args).squeeze(0) + self.transforms[len(self.transforms) - 1]
+        print("[LatticeLower] Start state: ", self.q_start)
+        print("[LatticeLower] Goal state: ", self.q_goal)
+
+        model_dirs, args = [], []
+        tasks = {}
+        datasets = []
+        for j, model_id in enumerate(model_ids):
+            model_dir = os.path.join(trained_models_dir, model_id)
+            model_dirs.append(model_dir)
+            args.append(load_params_from_yaml(os.path.join(model_dir, 'args.yaml')))
+            train_subset, train_dataloader, val_subset, val_dataloader = get_dataset(
+                dataset_class='TrajectoryDataset',
+                use_extra_objects=True,
+                obstacle_cutoff_margin=0.01,
+                **args[-1],
+                tensor_args=self.tensor_args
+            )
+            dataset = train_subset.dataset
+            datasets.append(dataset)
+            robot = dataset.robot
+            robot.radius *= 0.9
+            if j == 0:
+                self.robot = robot
+            task = dataset.task
+            tasks[j] = task
+
+        self.task = PlanningTaskEnsemble(
+            tasks, transforms,
+            tensor_args=self.tensor_args
+        )
+        self.q_limits = self.task.ws_limits
+        limits = self.q_limits.detach().cpu().numpy()
+        x_min, y_min = float(limits[0, 0]), float(limits[0, 1])
+        x_max, y_max = float(limits[1, 0]), float(limits[1, 1])
+        robot_radius = float(self.robot.radius)
+
+        def box_sdf(pts: torch.Tensor) -> torch.Tensor:
+            dx1 = pts[:, 0] - x_min
+            dx2 = x_max - pts[:, 0]
+            dy1 = pts[:, 1] - y_min
+            dy2 = y_max - pts[:, 1]
+            d = torch.stack([dx1, dx2, dy1, dy2], dim=1).min(dim=1).values
+            return d
+
+        self.env_class = self.model_ids[0].split("-")[0]
+        self.base_env = EnvWrapper(globals()[self.env_class](
+            precompute_sdf_obj_fixed=True,
+            sdf_cell_size=0.01,
+            tensor_args=self.tensor_args
+        ))
+        self.l_params = PlannerParams(
+            ds=lattice_ds,
+            dl=lattice_dl,
+            dt=lattice_dt,
+            max_s=lattice_max_s,
+            max_l=lattice_max_l,
+            v_set=tuple(lattice_v_set),
+            a_set=tuple(lattice_a_set),
+            robot_radius=robot_radius,
+            device=self.device
+        )
+
+    def _constraints_to_path_obstacles(self, constraints_l: Optional[List]) -> List[PathObstacle]:
+        if not constraints_l:
+            return []
+
+        def q_to_xy(q: torch.Tensor) -> np.ndarray:
+            if self.q_is_workspace:
+                q_np = q.detach().cpu().numpy()
+                if q_np.shape[-1] >= 2:
+                    return np.array([q_np[self.q_xy_index[0]], q_np[self.q_xy_index[1]]], dtype=float)
+                return np.array(q_np[:2], dtype=float)
+            else:
+                raise NotImplementedError("Please implement q->(x,y) mapping when q_is_workspace=False.")
+
+        path_obs: List[PathObstacle] = []
+        for c in constraints_l:
+            if isinstance(c, MultiPointConstraint):
+                for (q, (t0, t1), r) in zip(c.q_l, c.t_range_l, getattr(c, "radius_l", [])):
+                    xy = q_to_xy(q)
+                    ts = np.array([float(t0), float(t1)], dtype=float)
+                    pts = np.stack([xy, xy], axis=0)
+                    rad = float(r) if r is not None else self.default_ob_radius
+                    path_obs.append(PathObstacle(ts=ts, pts=pts, radius=rad))
+            else:
+                pass
+        return path_obs
+
+    def __call__(
+            self,
+            start_state_pos: torch.Tensor,
+            goal_state_pos: torch.Tensor,
+            constraints_l: Optional[List] = None,
+            experience: Optional[PathBatchExperience] = None,
+            *args, **kwargs
+    ) -> PlannerOutput:
+
+        def tens2xy(t: torch.Tensor) -> np.ndarray:
+            t = t.detach().cpu()
+            if self.q_is_workspace:
+                if t.numel() >= 2:
+                    return np.array([t[self.q_xy_index[0]].item(), t[self.q_xy_index[1]].item()], dtype=float)
+                return np.array(t[:2].tolist(), dtype=float)
+            else:
+                raise NotImplementedError("Please implement q->(x,y) mapping when q_is_workspace=False.")
+
+        start_xy = tens2xy(start_state_pos)
+        goal_xy = tens2xy(goal_state_pos)
+        path_obs = self._constraints_to_path_obstacles(constraints_l)
+
+        dyn_obs: List[Tuple[float, float, float, float]] = []
+        for po in path_obs:
+            t0, t1 = float(po.ts[0]), float(po.ts[-1])
+            if t1 < t0:
+                t0, t1 = t1, t0
+            n = max(1, int(np.ceil((t1 - t0) / max(1e-3, float(self.l_params.dt)))))
+            ts = np.linspace(t0, t1, n + 1)
+            for tt in ts:
+                dyn_obs.append((float(po.pts[0, 0]), float(po.pts[0, 1]), float(tt), float(po.radius)))
+
+        env = EnvWrapper(globals()[self.env_class](
+            precompute_sdf_obj_fixed=True,
+            sdf_cell_size=0.01,
+            tensor_args=self.tensor_args
+        ))
+
+        # lattice (s, l)
+        s_goal = float(goal_xy[0] - start_xy[0])
+        l_goal = float(goal_xy[1] - start_xy[1])
+
+        self.l_params.max_s = max(self.l_params.max_s, abs(s_goal) + 1.0)
+        planner = LatticePlanner(
+            self.l_params,
+            env
+        )
+        path_sl = planner.plan(v0_idx=0, a0_idx=0)
+        out = PlannerOutput()
+        if path_sl is None:
+            out.trajs_iters = None
+            out.trajs_final = None
+            out.trajs_final_coll = None
+            out.trajs_final_coll_idxs = torch.zeros(0, dtype=torch.long)
+            out.trajs_final_free = None
+            out.trajs_final_free_idxs = torch.zeros(0, dtype=torch.long)
+            out.success_free_trajs = False
+            out.fraction_free_trajs = 0.0
+            out.collision_intensity_trajs = 1.0
+            out.idx_best_traj = None
+            out.traj_final_free_best = None
+            out.t_total = 0.0
+            out.constraints_l = constraints_l
+            return out
+
+        # (s,l) traj project back to (x,y) = (s + x0, l + y0)
+        path_xy = np.array([(s + start_xy[0], l + start_xy[1]) for (s, l) in path_sl], dtype=np.float32)
+        traj = torch.from_numpy(path_xy).to(self.tensor_args["device"]).unsqueeze(0)  # [1, H, 2]
+
+        ds = float(self.l_params.ds)
+        v0 = float(self.l_params.v_set[0]) if len(self.l_params.v_set) > 0 else 1.0
+        t_total = float((len(path_sl) - 1) * ds / max(v0, 1e-3))
+
+        print(traj)
+        breakpoint()
+        out = PlannerOutput()
+        out.trajs_iters = [traj]
+        out.trajs_final = traj
+        out.trajs_final_coll = None
+        out.trajs_final_coll_idxs = torch.zeros(0, dtype=torch.long)
+        out.trajs_final_free = traj
+        out.trajs_final_free_idxs = torch.tensor([0], dtype=torch.long)
+        out.success_free_trajs = True
+        out.fraction_free_trajs = 1.0
+        out.collision_intensity_trajs = 0.0
+        out.idx_best_traj = 0
+        out.traj_final_free_best = traj[0]
+        out.cost_best_free_traj = None
+        out.cost_smoothness = None
+        out.cost_path_length = None
+        out.cost_all = None
+        out.variance_waypoint_trajs_final_free = None
+        out.t_total = t_total
+        out.constraints_l = constraints_l
+        out.trajs_final = smooth_trajs(out.trajs_final)
+        return out
+
+
+# ----------------------------------------------------------------------------
+# -----------------------------------------------------
 # ----------------------------------------------------------------------------
 # Environment Abstraction -----------------------------------------------------
 class Env2D:
@@ -49,7 +347,7 @@ class PlannerParams:
             dl: float = 0.5,
             v_set: Tuple[float, ...] = (0.5, 5., 10.),
             a_set: Tuple[float, ...] = (-2., 0., 2.),
-            dt: float = 0.2,
+            dt: float = 0.02,
             max_s: float = 64.,
             max_l: float = 3.,
             robot_radius: float = 0.5,
@@ -65,13 +363,16 @@ class PlannerParams:
 
 # ----------------------------------------------------------------------------
 # Cubic spiral solver ---------------------------------------------------------
-
 def _angle_diff(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return ((a - b + math.pi) % (2 * math.pi)) - math.pi
 
 
-def _cubic_spiral_coeffs(pose0: torch.Tensor, pose1: torch.Tensor,
-                         max_iter: int = 20, eps: float = 1e-6):
+def _cubic_spiral_coeffs(
+        pose0: torch.Tensor,
+        pose1: torch.Tensor,
+        max_iter: int = 20,
+        eps: float = 1e-6
+):
     """Return coeff [a,b,c,d] and arc-length L."""
     x0, y0, th0, k0 = pose0
     x1, y1, th1, k1 = pose1
@@ -123,10 +424,14 @@ def _cubic_spiral_coeffs(pose0: torch.Tensor, pose1: torch.Tensor,
 
     return torch.stack([a, b, c, d]), L
 
+
 # ----------------------------------------------------------------------------
 # Lattice Planner -------------------------------------------------------------
 class LatticePlanner:
-    def __init__(self, params: PlannerParams, env: Env2D):
+    def __init__(
+            self, params: PlannerParams,
+            env: Env2D
+    ):
         self.p = params
         self.env = env
         self.device = torch.device(params.device)
@@ -210,22 +515,17 @@ class LatticePlanner:
                     iv_new = min(max(iv_idx + dv, 0), self.nv - 1)
                     ia_new = min(max(ia_idx + da, 0), self.na - 1)
                     new_state = (js, jl, iv_new, ia_new)
-
                     # travel time on this edge (constant‑velocity approximation)
                     v_curr = max(self.p.v_set[iv_idx], 0.1)
                     t_edge = edge["length"] / v_curr
-
                     # absolute timestamps of the 40 sample points along the edge
                     ts = t_abs + torch.linspace(0.0, t_edge, edge["pts"].shape[0], device=self.device)
-
                     # dynamic‑obstacle safety
                     if not self.env.dynamic_safe(edge["pts"], ts, self.p.robot_radius + 1e-3):
                         continue
-
                     # cumulative cost & time
                     g_new = g + self._edge_cost(edge, iv_idx, ia_idx, iv_new)
                     t_new = t_abs + t_edge
-
                     if g_new < g_cost.get(new_state, float("inf")):
                         g_cost[new_state] = g_new
                         g_time[new_state] = t_new
@@ -233,7 +533,7 @@ class LatticePlanner:
                         f = g_new + self._heuristic(js, jl)
                         heapq.heappush(open_heap, (f, new_state))
 
-        raise RuntimeError("No feasible path to goal")
+        return None
 
     # ------------------------------------------------------------------
 
@@ -262,87 +562,3 @@ class LatticePlanner:
         seq.reverse()
         return [(self.s_vals[s].item(), self.l_vals[l].item()) for s, l, _, _ in seq]
 
-
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-
-# noqa: F401
-ds_val = 1
-v_nominal = 5.0
-robot_r = 0.5
-common_params = PlannerParams(
-    robot_radius=robot_r,
-    device="cpu",
-    v_set=[v_nominal]
-)
-
-# -------- 1. Plan without obstacles --------
-empty_env = Env2D(lambda pts: torch.full((pts.size(0),), 10.0, device=pts.device), dyn_obstacles=[])
-planner0 = LatticePlanner(common_params, empty_env)
-path0 = planner0.plan()                                 # baseline path
-# s0, l0 = np.array(path0).T
-# t0 = np.arange(len(s0)) * ds_val / v_nominal
-#
-# # -------- 2. Plan with obstacles --------
-# dyn_obs = [(30.0, 0.0, 6.0, 0.5)]                      # (x, y, t, r)
-# obst_env = Env2D(lambda pts: torch.full((pts.size(0),), 10.0, device=pts.device), dyn_obstacles=dyn_obs)
-#
-# planner1 = LatticePlanner(common_params, obst_env)
-# path1 = planner1.plan()                                 # avoidance path
-# s1, l1 = np.array(path1).T
-# t1 = np.arange(len(s1)) * ds_val / v_nominal
-#
-# # safety test
-# x_o, y_o, t_o, r_o = dyn_obs[0]
-# d_space = np.hypot(s1 - x_o, l1 - y_o) - (r_o + robot_r)
-# safe_mask = np.logical_or(d_space > 0, np.abs(t1 - t_o) > 1e-4)
-#
-# fig2d, ax2d = plt.subplots(figsize=(9,3))
-# ax2d.plot(s0, l0, '-k', lw=2, label='No-obstacle path')
-# ax2d.plot(s1, l1, '-ob', ms=4, label='With-obstacle path')
-# ax2d.add_patch(plt.Circle((x_o, y_o), r_o, fc='none', ec='r', ls='--', lw=1.5))
-# ax2d.set_xlabel("s (m)"); ax2d.set_ylabel("ℓ (m)")
-# ax2d.set_title("2-D projection: paths comparison")
-# ax2d.axis('equal'); ax2d.grid(True); ax2d.legend()
-#
-# fig3d = plt.figure(figsize=(7,5))
-# ax3d = fig3d.add_subplot(111, projection='3d')
-# ax3d.plot(s0, l0, t0, lw=2, c='k', label='No-obstacle')
-# ax3d.plot(s1, l1, t1, lw=2, c='b', label='With-obstacle')
-# ax3d.scatter(x_o, y_o, t_o, s=250, c='r', alpha=0.7, label='Pedestrian')
-# ax3d.plot([x_o, x_o], [y_o, y_o], [t_o-0.3, t_o+0.3], 'r--', lw=1)
-# ax3d.set_xlabel('s (m)'); ax3d.set_ylabel('ℓ (m)'); ax3d.set_zlabel('time (s)')
-# ax3d.set_title("3-D space-time comparison")
-# ax3d.legend()
-#
-# plt.tight_layout()
-# plt.show()
-#
-# SAVE_GIF = True
-# if SAVE_GIF:
-#     from matplotlib.animation import FuncAnimation, PillowWriter
-#     fig, ax = plt.subplots(figsize=(9,3))
-#     ax.set_xlim(0, max(s1.max(), s0.max())+1); ax.set_ylim(-1.5, 1.5)
-#     ax.set_xlabel("s (m)"); ax.set_ylabel("ℓ (m)")
-#     ax.set_title("Time-synchronized view")
-#     ax.plot(s0, l0, lw=1, color='0.7')
-#     ax.plot(s1, l1, lw=1, color='0.4')
-#     ped_circle = plt.Circle((x_o, y_o), r_o, fc='none', ec='r', ls='--', lw=1.5)
-#     ax.add_patch(ped_circle)
-#     robot_dot0, = ax.plot([], [], 'ko', ms=6)
-#     robot_dot1, = ax.plot([], [], 'bo', ms=6)
-#     time_txt = ax.text(0.02, 0.95, '', transform=ax.transAxes)
-#
-#     frames = max(len(t0), len(t1))
-#     def update(i):
-#         if i < len(t0):
-#             robot_dot0.set_data(s0[i], l0[i])
-#         if i < len(t1):
-#             robot_dot1.set_data(s1[i], l1[i])
-#         time_txt.set_text(f"t ≈ {i*ds_val/v_nominal:.1f} s")
-#         return robot_dot0, robot_dot1, time_txt
-#     ani = FuncAnimation(fig, update, frames=frames, interval=50, blit=True)
-#     ani.save("lattice.gif", dpi=120, writer=PillowWriter())
-#     print("saved lattice.gif")
