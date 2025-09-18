@@ -21,6 +21,7 @@ from mdoc.common import smooth_trajs
 from mdoc.utils.loading import load_params_from_yaml
 from mdoc.trainer import get_dataset
 
+
 @dataclass
 class PathObstacle:
     ts: np.ndarray  # (L,)
@@ -38,12 +39,14 @@ class PathObstacle:
         a = 0.0 if t1 == t0 else (t - t0) / (t1 - t0)
         return (1 - a) * self.pts[k] + a * self.pts[k + 1]
 
+
 class EnvWrapper:
     """
     Wraps a torch_robotics EnvBase (e.g., EnvEmptyNoWait2D) to expose:
       - sdf(pts: [N,2]) -> [N]   via compute_sdf
       - dynamic_safe(pts: [N,2], ts: [N], margin: float) -> bool
     """
+
     def __init__(self, tr_env, dyn_obstacles=None):
         self.tr_env = tr_env
         self.dyn_obs = dyn_obstacles or []  # list[(x, y, t, r)]
@@ -65,14 +68,14 @@ class EnvWrapper:
             return True
         device = pts.device
         obs = torch.tensor(self.dyn_obs, device=device, dtype=pts.dtype)  # [M,4] (x,y,t,r)
-        obs_xy = obs[:, :2]                                              # [M,2]
-        obs_t = obs[:, 2]                                               # [M]
-        obs_r = obs[:, 3]                                               # [M]
+        obs_xy = obs[:, :2]  # [M,2]
+        obs_t = obs[:, 2]  # [M]
+        obs_r = obs[:, 3]  # [M]
 
         # space distance from each point to each obstacle center
         d_space = torch.cdist(pts.unsqueeze(0), obs_xy.unsqueeze(0)).squeeze(0)  # [N,M]
         # time difference
-        d_time = (ts.unsqueeze(1) - obs_t).abs()                                   # [N,M]
+        d_time = (ts.unsqueeze(1) - obs_t).abs()  # [N,M]
         # safe if outside obstacle radius+margin OR not at the same time
         ok = ((d_space - obs_r) > margin) | (d_time > 1e-3)
         return ok.all().item()
@@ -93,12 +96,11 @@ class LatticeLower:
             trained_models_dir: str,
             device: str,
             results_dir: str,
-
             seed: int = 0,
             q_is_workspace: bool = True,
             q_xy_index: tuple = (0, 1),
             default_ob_radius: float = 0.25,
-            lattice_ds: float = 1.0,
+            lattice_ds: float = 0.05,
             lattice_dl: float = 0.5,
             lattice_dt: float = 0.02,
             lattice_max_s: float = 64.0,
@@ -251,10 +253,11 @@ class LatticeLower:
         s_goal = float(goal_xy[0] - start_xy[0])
         l_goal = float(goal_xy[1] - start_xy[1])
 
-        self.l_params.max_s = max(self.l_params.max_s, abs(s_goal) + 1.0)
+        # self.l_params.max_s = max(self.l_params.max_s, abs(s_goal) + 1.0)
         planner = LatticePlanner(
             self.l_params,
-            env
+            env,
+            s_goal=s_goal
         )
         path_sl = planner.plan(v0_idx=0, a0_idx=0)
         out = PlannerOutput()
@@ -282,8 +285,6 @@ class LatticeLower:
         v0 = float(self.l_params.v_set[0]) if len(self.l_params.v_set) > 0 else 1.0
         t_total = float((len(path_sl) - 1) * ds / max(v0, 1e-3))
 
-        print(traj)
-        breakpoint()
         out = PlannerOutput()
         out.trajs_iters = [traj]
         out.trajs_final = traj
@@ -308,42 +309,11 @@ class LatticeLower:
 
 
 # ----------------------------------------------------------------------------
-# -----------------------------------------------------
-# ----------------------------------------------------------------------------
-# Environment Abstraction -----------------------------------------------------
-class Env2D:
-    """Minimal 2‑D environment wrapper providing an SDF and dynamic obstacles."""
-
-    def __init__(self, sdf_fun, dyn_obstacles: Optional[Sequence[Tuple[float, float, float, float]]] = None):
-        """``sdf_fun``: callable( [N,2] tensor ) → signed dist (>0 free) .
-        ``dyn_obstacles`` list items: (x, y, t, radius).
-        """
-        self.sdf_fun = sdf_fun
-        self.dyn_obs = dyn_obstacles or []
-
-    def sdf(self, pts: torch.Tensor) -> torch.Tensor:  # [N,2] → [N]
-        return self.sdf_fun(pts)
-
-    def dynamic_safe(self, pts: torch.Tensor, ts: torch.Tensor, margin: float) -> bool:
-        if not self.dyn_obs:
-            return True
-        obs = torch.tensor(self.dyn_obs, device=pts.device)  # [M,4]
-        obs_xy = obs[:, :2]  # [M,2]
-        obs_t = obs[:, 2]  # [M]
-        obs_r = obs[:, 3]  # [M]
-        # pts [N,2], ts [N]
-        d_space = torch.cdist(pts.unsqueeze(0), obs_xy.unsqueeze(0)).squeeze(0)  # [N,M]
-        d_time = (ts.unsqueeze(1) - obs_t).abs()  # [N,M]
-        ok = ((d_space - obs_r) > margin) | (d_time > 1e-3)  # either far in space or wrong time
-        return ok.all().item()
-
-
-# ----------------------------------------------------------------------------
 # Parameters ------------------------------------------------------------------
 class PlannerParams:
     def __init__(
             self,
-            ds: float = 1.0,
+            ds: float = 0.2,
             dl: float = 0.5,
             v_set: Tuple[float, ...] = (0.5, 5., 10.),
             a_set: Tuple[float, ...] = (-2., 0., 2.),
@@ -429,27 +399,39 @@ def _cubic_spiral_coeffs(
 # Lattice Planner -------------------------------------------------------------
 class LatticePlanner:
     def __init__(
-            self, params: PlannerParams,
-            env: Env2D
+            self,
+            params: PlannerParams,
+            env,
+            s_goal: float
     ):
         self.p = params
         self.env = env
         self.device = torch.device(params.device)
 
-        # discrete axes
-        self.s_vals = torch.arange(0., params.max_s + 1e-6, params.ds, device=self.device)
-        self.l_vals = torch.arange(-params.max_l, params.max_l + 1e-6, params.dl, device=self.device)
-        self.nv, self.na = len(params.v_set), len(params.a_set)
+        # ---- Build discrete s-axis using integer indices ----
+        ds = self.p.ds
+        goal_idx = int(round(s_goal / ds))
+        idx_min = min(0, goal_idx) - 1
+        idx_max = max(0, goal_idx) + 1
+        idx_vals = torch.arange(idx_min, idx_max + 1, device=self.device)
+        self.nv, self.na = len(self.p.v_set), len(self.p.a_set)
+        self.s_vals = idx_vals * ds
+        self.l_vals = torch.arange(-self.p.max_l, self.p.max_l + 1e-6, self.p.dl, device=self.device)
 
-        # cost‑to‑come table (not GPU‑huge; stay CPU for memory)
+        # start/goal indices in this integer grid (exact, no rounding now)
+        self.start_s_idx = -idx_min  # because start is at s=0 → index 0 - idx_min
+        self.goal_s_idx = goal_idx - idx_min
+        self.start_l_idx = self._l_idx(0.0)
+
+        # cost-to-come tables
         self.g_cost = {}
-        # pre‑compute edges + prune by collision
+        # pre-compute edges + prune by collision
         self._build_edge_bank()
 
     # ------------------------------------------------------------------
     def _build_edge_bank(self):
         self.edge_bank: Dict[Tuple[int, int], List[Dict]] = {}
-        offsets = [(1, 0), (0, 1), (1, 1), (1, -1)]
+        offsets = [(1, 0), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]
         for i_s in range(len(self.s_vals) - 1):
             for i_l in range(1, len(self.l_vals) - 1):
                 edges = []
@@ -483,29 +465,37 @@ class LatticePlanner:
 
     # ------------------------------------------------------------------
     def _heuristic(self, is_idx: int, il_idx: int) -> float:
-        s_rem = (len(self.s_vals) - 1 - is_idx) * self.p.ds
-        l_abs = abs(self.l_vals[il_idx].item())
+        s_rem = abs(self.goal_s_idx - is_idx) * self.p.ds
+        l_abs = abs(self.l_vals[il_idx].item())  # target ℓ≈0
         v_max = max(self.p.v_set)
-        return (s_rem + 0.5 * l_abs) / (v_max + 1e-3)
+        return (s_rem + 2 * l_abs) / (v_max + 1e-3)
 
     # ------------------------------------------------------------------
     def plan(self, v0_idx: int = 0, a0_idx: int = 0):
         """A* search that also keeps *absolute time* at each state for dynamic checks."""
-        start_state = (0, self._l_idx(0.), v0_idx, a0_idx)
+        start_state = (self.start_s_idx, self.start_l_idx, v0_idx, a0_idx)
         g_cost: Dict[Tuple[int, int, int, int], float] = {start_state: 0.0}
         g_time: Dict[Tuple[int, int, int, int], float] = {start_state: 0.0}
         parent: Dict[Tuple[int, int, int, int], Tuple[int, int, int, int]] = {}
 
-        open_heap: List[Tuple[float, Tuple[int, int, int, int]]] = []
-        heapq.heappush(open_heap, (self._heuristic(*start_state[:2]), start_state))
+        print("=== Planner debug ===")
+        print("ds:", self.p.ds)
+        print("start_s_idx:", self.start_s_idx,
+              "goal_s_idx:", self.goal_s_idx)
+        print("s_vals[start]:", self.s_vals[self.start_s_idx].item(),
+              "s_vals[goal]:", self.s_vals[self.goal_s_idx].item())
+        print("=====================")
 
+        open_heap: List[Tuple[float, Tuple[int, int, int, int]]] = []
+        heapq.heappush(open_heap, (self._heuristic(self.start_s_idx, self.start_l_idx), start_state))
         while open_heap:
             _, state = heapq.heappop(open_heap)
             is_idx, il_idx, iv_idx, ia_idx = state
             g = g_cost[state]
             t_abs = g_time[state]
-            # goal check (last longitudinal column)
-            if is_idx == len(self.s_vals) - 1:
+
+            # Require reaching goal_s_idx AND near ℓ=0 (same l-index as start, or small tolerance)
+            if is_idx == self.goal_s_idx and abs(self.l_vals[il_idx].item()) <= (self.p.dl * 0.5):
                 return self._reconstruct(state, parent)
 
             # expand
@@ -561,4 +551,3 @@ class LatticePlanner:
             seq.append(parent[seq[-1]])
         seq.reverse()
         return [(self.s_vals[s].item(), self.l_vals[l].item()) for s, l, _, _ in seq]
-
