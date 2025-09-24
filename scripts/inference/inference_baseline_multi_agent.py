@@ -387,7 +387,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=3,
+        default=10,
         help='Number of agents'
     )
     parser.add_argument(
@@ -412,7 +412,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='LatticeLower',
+        default='KCBSLower',
         choices=[
             'KCBSLower',
             'WAStar',

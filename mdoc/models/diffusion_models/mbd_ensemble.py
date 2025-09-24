@@ -62,7 +62,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             'temp_sample': mparams.temp_sample,
             'n_samples': mparams.n_samples,
             'n_diffusion_step': mparams.n_diffusion_steps,
-            'horizon': mparams.horizon,
+            'horizon': 64,
             'beta0': 1e-5,
             'betaT': 1e-2
         }
@@ -354,7 +354,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             # evaluate samples
             qs = []
             actions = traj_0s[..., self.robot.q_dim:]
-            costs, q_seq, free_mask = self._rollout_us_batch(model_id, self.state_inits, actions)
+            costs, q_seq, free_mask = self._rollout_double_batch(model_id, self.state_inits, actions)
             # print("sdf min per traj:", env_model.compute_sdf(q_seq.reshape(-1, 2)).view(n_samples, model_params['params']['horizon']).min(dim=1).values)
             # q_seq = self._project_to_free_space(
             #     q_seq,
@@ -397,7 +397,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         soft_constraint_grad = torch.zeros(traj_i.shape[0], traj_i.shape[1], self.robot.q_dim, device=traj_i.device)
         if len(self.soft_constraints[model_id]) > 0:
-            lambda_c = 5e-4
+            lambda_c = 1e-5
             k = 15
             import time
             start = time.time()
@@ -466,8 +466,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if self.enable_demo:
             xref_logpds = torch.tensor([env_model.eval_xref_logpd(q) for q in qs], device=self.device)
             xref_logpds = xref_logpds - xref_logpds.max()
-            logpdemo = -(xref_logpds + env_model.rew_xref - cost_mean) / cost_std / model_params['params'][
-                'temp_sample']
+            logpdemo = -(xref_logpds + env_model.rew_xref - cost_mean) / cost_std / model_params['params']['temp_sample']
             demo_mask = logpdemo > logp0
             logp0 = torch.where(demo_mask, logpdemo, logp0)
             logp0 = (logp0 - logp0.mean()) / logp0.std() / model_params['params']['temp_sample']
@@ -539,7 +538,51 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         return costs, pipeline_states
 
-    def _rollout_us_batch(self, model_id, state_init, us):
+    def _rollout_double_batch(self, model_id, state_init, a_seq, v_max: float = 2.0, a_max: float = 0.08, w_a: float = 1e-2, w_jerk: float = 1e-3):
+        """
+        Double-integrator batch rollout .
+        a_seq : (B, H, q_dim)  accelaration
+        return:
+          cost_sum : (B,)
+          q_seq    : (B, H, q_dim)
+          free_mask: (B,)
+          v_seq    : (B, H, q_dim)
+        """
+        env = self.env_models[model_id]
+        B, H, q_dim = a_seq.shape
+        dt = self.robot.dt
+
+        q0 = state_init.q.view(1, 1, q_dim).to(a_seq.device).expand(B, 1, q_dim)
+        v0 = state_init.q_dot.view(1, 1, q_dim).to(a_seq.device).expand(B, 1, q_dim)
+
+        a_seq = a_seq.clamp(-a_max, a_max)  # (B,H,q)
+        v_seq = (v0 + torch.cumsum(a_seq, dim=1) * dt).clamp(-v_max, v_max)
+        q_seq = q0 + torch.cumsum(v_seq, dim=1) * dt
+
+        pos_err = (self.goal_state_pos.view(1, 1, q_dim) - q_seq).norm(dim=2)  # (B,H)
+        cost_track = 500.0 * pos_err
+        cost_acc = w_a * (a_seq ** 2).sum(dim=(1, 2))
+        if H >= 2:
+            jerk = a_seq[:, 1:, :] - a_seq[:, :-1, :]
+            cost_jerk = w_jerk * (jerk ** 2).sum(dim=(1, 2))
+        else:
+            cost_jerk = torch.zeros(B, device=a_seq.device)
+        cost_sum = cost_track.sum(dim=1) + cost_acc + cost_jerk
+
+        if env is not None:
+            q_ws = q_seq
+            if self.transforms is not None and model_id in self.transforms:
+                offset = self.transforms[model_id].to(q_seq.device)
+                q_ws = q_seq + offset.view(1, 1, -1)
+            sdf = env.compute_sdf(q_ws.reshape(-1, q_dim)).view(B, H)
+            sdf = sdf - (mparams.robot_planar_disk_radius + 1e-8)
+            free_mask = (sdf.min(dim=1).values >= 0)
+        else:
+            free_mask = torch.ones(B, dtype=torch.bool, device=a_seq.device)
+
+        return cost_sum, q_seq, free_mask
+
+    def _rollout_single_batch(self, model_id, state_init, us):
         """
         Args
         ----

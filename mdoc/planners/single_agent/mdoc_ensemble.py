@@ -28,7 +28,7 @@ from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torc
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
 from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 
-TRAINED_MODELS_DIR = '../../data_trained_models/'
+TRAINED_MODELS_DIR = './data_trained_models/'
 
 
 class MDOCEnsemble(SingleAgentPlanner):
