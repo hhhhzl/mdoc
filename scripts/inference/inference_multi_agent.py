@@ -374,7 +374,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=10,
+        default=5,
         help='Number of agents'
     )
     parser.add_argument(
