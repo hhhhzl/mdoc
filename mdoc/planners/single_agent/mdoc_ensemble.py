@@ -349,7 +349,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             #     render_planner=False,
             # )
             # plt.show()
-            # import random
+            import random
             # planner_visualizer.animate_robot_trajectories(
             #     trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
             #     plot_trajs=True,

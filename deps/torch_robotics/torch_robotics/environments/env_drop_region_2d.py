@@ -188,7 +188,6 @@ class EnvDropRegion2D(EnvBase):
             region_center = torch.tensor(c, **self.tensor_args)
             dist = torch.norm(path - region_center, dim=-1)
             in_region_mask = dist < drop_region_radius
-            print("AT REGION:", torch.sum(in_region_mask.float()))
             # Compute the data adherence.
             for i in range(num_steps_in_region, len(path)):
                 if in_region_mask[i - num_steps_in_region:i].all():
