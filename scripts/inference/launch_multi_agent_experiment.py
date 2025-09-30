@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[2, 3, 6],
+        default=[11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
         help='List of number of agents to test'
     )
 
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default=EnvironmentType.HIGHWAYS_DISK_RANDOM.value,
+        default=EnvironmentType.EMPTY_DISK_BOUNDARY.value,
         choices=EnvironmentType.choices(),
         help='Environment/instance to use for the experiment'
     )
@@ -47,17 +47,17 @@ def parse_args():
 
     # Planner configuration (using Enum choices)
     parser.add_argument(
-        '--hp',
+        '--hps',
         nargs='+',
-        default=[MultiAgentPlannerType.XECBS.value],
+        default=[MultiAgentPlannerType.CBS.value],
         choices=MultiAgentPlannerType.choices(),
         help='List of multi-agent planners to test'
     )
 
     parser.add_argument(
-        '--lp',
+        '--lps',
         nargs='+',
-        default=[LowerPlannerMethodType.MMD.value],
+        default=[LowerPlannerMethodType.MDOC.value],
         choices=LowerPlannerMethodType.choices(),
         help='Single agent planner to use'
     )
@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument(
         '--rl',
         type=int,
-        default=60 * 3,
+        default=60 * 20,
         help='Runtime limit in seconds'
     )
     parser.add_argument(
@@ -98,7 +98,6 @@ def run_multi_agent_experiment(experiment_config: MultiAgentPlanningExperimentCo
         try:
             run_multi_agent_trial(single_trial_config)
             # Aggregate and save data on every step. This is not needed (can be done once at the end).
-            # combine_and_save_results_for_experiment(experiment_config)
         except Exception as e:
             print("Error in run_multi_agent_experiment: ", e)
             # Save to a file.
@@ -126,8 +125,8 @@ if __name__ == "__main__":
 
     experiment_config.instance_name = EnvironmentType.from_string(args.e).value
     experiment_config.stagger_start_time_dt = args.st
-    experiment_config.multi_agent_planner_class_l = args.hp  # , "ECBS", "PP", "XCBS", "CBS"]
-    experiment_config.single_agent_planner_class = args.lp[0]
+    experiment_config.multi_agent_planner_class_l = args.hps  # , "ECBS", "PP", "XCBS", "CBS"]
+    experiment_config.single_agent_planner_class_l = args.lps
     experiment_config.runtime_limit = args.rl
     experiment_config.num_trials_per_combination = args.nt
     experiment_config.render_animation = args.ra

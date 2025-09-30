@@ -35,7 +35,7 @@ from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 
-TRAINED_MODELS_DIR = '../../data_trained_models/'
+TRAINED_MODELS_DIR = './data_trained_models/'
 
 
 class MPDEnsemble(SingleAgentPlanner):
@@ -344,7 +344,8 @@ class MPDEnsemble(SingleAgentPlanner):
                         traj_range_l=c.get_t_range_l(),
                         radius_l=c.radius_l,
                         is_soft=c.is_soft,
-                        tensor_args=self.tensor_args
+                        tensor_args=self.tensor_args,
+                        priority_weight=1
                     )
                 )
         # Carry out inference with the constraints. If there is no experience, inference from scratch.
@@ -453,7 +454,8 @@ class MPDEnsemble(SingleAgentPlanner):
                 traj_range_l=traj_range_l,
                 radius_l=radius_l,
                 is_soft=False,
-                tensor_args=self.tensor_args
+                tensor_args=self.tensor_args,
+                priority_weight=1
             )
             if task_id not in task_id_to_cost_constraints_l:
                 task_id_to_cost_constraints_l[task_id] = []
@@ -472,7 +474,8 @@ class MPDEnsemble(SingleAgentPlanner):
                 traj_range_l=traj_range_l,
                 radius_l=radius_l,
                 is_soft=True,
-                tensor_args=self.tensor_args
+                tensor_args=self.tensor_args,
+                priority_weight=1
             )
             if task_id not in task_id_to_cost_constraints_l:
                 task_id_to_cost_constraints_l[task_id] = []

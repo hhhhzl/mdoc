@@ -845,7 +845,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             # evaluate samples
             qs = []
             actions = traj_0s[..., self.robot.q_dim:]
-            costs, q_seq, free_mask = self.rollout_ultrafast(model_id, self.state_inits, actions)
+            costs, q_seq, free_mask = self._rollout_single_batch_new2_ultrafast(model_id, self.state_inits, actions)
             # costs, q_seq, free_mask = self.rollout_ultrafast(
             #     model_id, self.state_inits, actions, use_amp=False
             # )
@@ -1212,14 +1212,14 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         runtime_cost += 1.0 * ctrl
         runtime_cost += 5 * dist_to_goal
 
-        t_star = max(1, int(0.9 * H))
+        t_star = max(1, int(0.95 * H))
         t_idx = torch.arange(H, device=device).view(1, H)
         d0 = (state_init.q.to(device) - q_goal).norm().view(1, 1)
         d_hat = d0 * torch.clamp(1.0 - t_idx.float() / t_star, min=0.0)
         runtime_cost += 1.0 * (dist_to_goal - d_hat).pow(2)
 
         s = (t_idx.float() / t_star).clamp(max=1.0).view(1, H, 1)
-        v_bar = (d0.view(1, 1, 1) / (t_star * dt + 1e-6)) * (1.0 * s * (1.0 - s))
+        v_bar = (d0.view(1, 1, 1) / (t_star * dt + 1e-6)) * (4 * s * (1.0 - s))
         u_norm = u_safe.norm(dim=-1, keepdim=True)
         runtime_cost += 0.5 * (u_norm - v_bar).pow(2).squeeze(-1)
 

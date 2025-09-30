@@ -16,18 +16,19 @@ from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_l
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
 from mdoc.common import get_start_goal_pos_circle
 from mdoc.common.pretty_print import *
 from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, get_result_dir_from_trial_config, TrialSuccessStatus
-
-from scripts import (
-    MultiAgentPlannerType,
-    EnvironmentType,
-    LowerPlannerMethodType
+from mdoc.planners.single_agent import (
+    MDOCEnsemble,
+    MPD,
+    MPDEnsemble,
+    WAStar,
+    KCBSLower,
+    LatticeLower
 )
 
 TRAINED_MODELS_DIR = './data_trained_models/'
@@ -52,9 +53,17 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     elif test_config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
         planner_alg = 'mmd'
-    else:
+    elif test_config.single_agent_planner_class == 'WAStar':
         from mdoc.config.wastar_params import MMPDParams as params
-        planner_alg = 'mmpd'
+        planner_alg = 'wastar'
+    elif test_config.single_agent_planner_class == 'KCBSLower':
+        from mdoc.config.wastar_params import MMPDParams as params
+        planner_alg = 'kcbs'
+    elif test_config.single_agent_planner_class == 'LatticeLower':
+        from mdoc.config.wastar_params import MMPDParams as params
+        planner_alg = 'lattice'
+    else:
+        raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
     low_level_planner_model_args = {
         'planner_alg': planner_alg,
@@ -124,9 +133,9 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # ============================
     # Parse the single agent planner class name.
     # ============================
-    if test_config.single_agent_planner_class == "MPD":
+    if test_config.single_agent_planner_class == "MMD":
         low_level_planner_class = MPD
-    elif test_config.single_agent_planner_class == "MPDEnsemble":
+    elif test_config.single_agent_planner_class == "MMDEnsemble":
         low_level_planner_class = MPDEnsemble
     elif test_config.single_agent_planner_class == "MDOCEnsemble":
         low_level_planner_class = MDOCEnsemble
@@ -134,6 +143,10 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # baselines
     elif "WAStar" in test_config.single_agent_planner_class:
         low_level_planner_class = WAStar
+    elif "KCBSLower" in test_config.single_agent_planner_class:
+        low_level_planner_class = KCBSLower
+    elif "LatticeLower" in test_config.single_agent_planner_class:
+        low_level_planner_class = LatticeLower
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -402,9 +415,10 @@ def parse_args():
         default='MDOCEnsemble',
         choices=[
             'MDOCEnsemble',
-            'MPDEnsemble',
-            'MPD',
+            'MMDEnsemble',
+            'MMD',
             'WAStar',
+            'KCBSLower',
             'WAStarData'
         ],
         help='Single agent planner class'
@@ -497,7 +511,7 @@ if __name__ == '__main__':
         config.agent_skeleton_l = [[[0, 0]]] * config.num_agents
         torch.random.manual_seed(10)
         config.start_state_pos_l, config.goal_state_pos_l = \
-            get_start_goal_pos_circle(device, config.num_agents, 0.8)
+            get_start_goal_pos_circle(config.num_agents, 0.8, device)
 
         print("Starts:", config.start_state_pos_l)
         print("Goals:", config.goal_state_pos_l)

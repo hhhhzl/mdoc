@@ -27,7 +27,7 @@ class MultiAgentPlanningExperimentConfig:
     # Multi-agent planner classes to try.
     multi_agent_planner_class_l: List[str] = []
     # Single agent planner class.
-    single_agent_planner_class: str = None
+    single_agent_planner_class_l: List[str] = []
     # Runtime limit. In seconds.
     runtime_limit = params.runtime_limit
     # Number of trials per num agents + planner combination.
@@ -49,22 +49,22 @@ class MultiAgentPlanningExperimentConfig:
                 agent_skeleton_l_l.append(agent_skeleton_l)
             # Create the single trial configs.
             for multi_agent_planner_class in self.multi_agent_planner_class_l:
-                for trial_number in range(self.num_trials_per_combination):
-                    single_trial_config = MultiAgentPlanningSingleTrialConfig()
-                    single_trial_config.time_str = self.time_str
-                    single_trial_config.trial_number = trial_number
-                    single_trial_config.num_agents = num_agents
-                    single_trial_config.stagger_start_time_dt = self.stagger_start_time_dt
-                    single_trial_config.multi_agent_planner_class = multi_agent_planner_class
-                    single_trial_config.single_agent_planner_class = self.single_agent_planner_class
-                    single_trial_config.instance_name = self.instance_name
-                    single_trial_config.runtime_limit = self.runtime_limit
-                    single_trial_config.render_animation = self.render_animation
-                    single_trial_config.start_state_pos_l, single_trial_config.goal_state_pos_l, \
-                        single_trial_config.global_model_ids, single_trial_config.agent_skeleton_l = \
-                        start_state_pos_l_l[trial_number], goal_state_pos_l_l[trial_number], \
-                        global_model_ids_l_l[trial_number], agent_skeleton_l_l[trial_number]
-                    single_trial_configs.append(single_trial_config)
+                for single_agent_planner_class in self.single_agent_planner_class_l:
+                    for trial_number in range(self.num_trials_per_combination):
+                        single_trial_config = MultiAgentPlanningSingleTrialConfig()
+                        single_trial_config.time_str = self.time_str
+                        single_trial_config.trial_number = trial_number
+                        single_trial_config.num_agents = num_agents
+                        single_trial_config.stagger_start_time_dt = self.stagger_start_time_dt
+                        single_trial_config.multi_agent_planner_class = multi_agent_planner_class
+                        single_trial_config.single_agent_planner_class = single_agent_planner_class
+                        single_trial_config.runtime_limit = self.runtime_limit
+                        single_trial_config.render_animation = self.render_animation
+                        single_trial_config.start_state_pos_l, single_trial_config.goal_state_pos_l, \
+                            single_trial_config.global_model_ids, single_trial_config.agent_skeleton_l = \
+                            start_state_pos_l_l[trial_number], goal_state_pos_l_l[trial_number], \
+                            global_model_ids_l_l[trial_number], agent_skeleton_l_l[trial_number]
+                        single_trial_configs.append(single_trial_config)
         return single_trial_configs
 
     def save(self):
@@ -81,7 +81,7 @@ class MultiAgentPlanningExperimentConfig:
             Num Agents: {self.num_agents_l}
             Stagger Start Time: {self.stagger_start_time_dt}
             Multi-agent Planner Classes: {self.multi_agent_planner_class_l}
-            Single Agent Planner: {self.single_agent_planner_class}
+            Single Agent Planner: {self.single_agent_planner_class_l}
             Runtime Limit: {self.runtime_limit}
             Num Trials Per Combination: {self.num_trials_per_combination}
             Instance: {self.instance_name}
@@ -114,6 +114,7 @@ class MultiAgentPlanningSingleTrialConfig:
     global_model_ids = []
     # The model coord skeleton for each agent.
     agent_skeleton_l = []
+    seed = 0
 
     def save(self, results_dir: str):
         # Save the config.
