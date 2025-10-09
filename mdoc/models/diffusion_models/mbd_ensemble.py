@@ -1178,7 +1178,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
                     sign = +1.0 if (self.agent_id % 2 == 0) else -1.0
                 scale_pw = 1.0
 
-                # 若注册了 CostConstraint，可用其 priority_weight 微调（可选）
+                # if regist CostConstraint，可用其 priority_weight 微调（可选）
                 # if (hasattr(self, "soft_constraints") and model_id in self.vertex_cost_constraints):
                 #     try:
                 #         pw = float(self.soft_constraints[model_id].priority_weight)
@@ -1210,13 +1210,13 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         runtime_cost = torch.zeros(B, H, device=device)
         runtime_cost += 1.0 * ctrl
-        runtime_cost += 5 * dist_to_goal
+        runtime_cost += 15 * dist_to_goal
 
         t_star = max(1, int(0.95 * H))
         t_idx = torch.arange(H, device=device).view(1, H)
         d0 = (state_init.q.to(device) - q_goal).norm().view(1, 1)
         d_hat = d0 * torch.clamp(1.0 - t_idx.float() / t_star, min=0.0)
-        runtime_cost += 1.0 * (dist_to_goal - d_hat).pow(2)
+        runtime_cost += 18 * (dist_to_goal - d_hat).pow(2)
 
         s = (t_idx.float() / t_star).clamp(max=1.0).view(1, H, 1)
         v_bar = (d0.view(1, 1, 1) / (t_star * dt + 1e-6)) * (4 * s * (1.0 - s))

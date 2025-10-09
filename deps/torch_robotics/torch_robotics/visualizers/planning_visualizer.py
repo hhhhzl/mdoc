@@ -35,14 +35,14 @@ class PlanningVisualizer:
         self.cmaps_robot = {'collision': 'Greys', 'free': 'YlOrRd'}
 
     def render_robot_trajectories(self, fig=None, ax=None, render_planner=False, trajs=None, traj_best=None,
-                                  show_robot_in_image=False, constraints_l=None, **kwargs):
+                                  show_robot_in_image=False, constraints_l=None, check_collision=True, color_same=False, **kwargs):
         if fig is None or ax is None:
             fig, ax = create_fig_and_axes(dim=self.env.dim)
 
         if render_planner:
             self.planner.render(ax)
         self.env.render(ax)
-        if trajs is not None:
+        if trajs is not None and check_collision:
             _, trajs_coll_idxs, _, trajs_free_idxs, _ = self.task.get_trajs_collision_and_free(trajs, return_indices=True)
             kwargs['colors'] = []
             for i in range(len(trajs_coll_idxs) + len(trajs_free_idxs)):
@@ -66,6 +66,8 @@ class PlanningVisualizer:
                 kwargs['q_tail'] = q_tail
                 # Random color from colormap for the robot and tail. From cmap tab20(do c optionally).
                 color = plt.cm.tab20(np.random.randint(0, 20))
+                if color_same:
+                    color = kwargs['colors'][0]
                 self.robot.render(
                     ax, q=q,
                     color=color,

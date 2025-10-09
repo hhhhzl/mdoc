@@ -191,7 +191,7 @@ class EnvHighways2D(EnvBase):
             start_region_radius = 0.15
             goal_region_radius = 0.15
             if torch.any(torch.norm(start_region_centers - start_pos, dim=-1) < start_region_radius).item() and \
-               torch.any(torch.norm(goal_region_centers - goal_pos, dim=-1) < goal_region_radius).item():
+                    torch.any(torch.norm(goal_region_centers - goal_pos, dim=-1) < goal_region_radius).item():
                 return True
             else:
                 return False
@@ -235,7 +235,8 @@ class EnvHighways2D(EnvBase):
             # Get rid of the first few points and the last few points. We only care about the homotopy.
             skill_pos_sequence_l = [skill_pos_sequence_l[0][4:-4]]
             # Add noise.
-            skill_pos_sequence_l += [skill_pos_sequence_l[i] + torch.randn_like(skill_pos_sequence_l[i]) * 0.01 for i in range(len(skill_pos_sequence_l))]
+            skill_pos_sequence_l += [skill_pos_sequence_l[i] + torch.randn_like(skill_pos_sequence_l[i]) * 0.01 for i in
+                                     range(len(skill_pos_sequence_l))]
 
             # Show the skill.
             # import matplotlib.pyplot as plt
@@ -254,7 +255,7 @@ class EnvHighways2D(EnvBase):
 
     def compute_traj_data_adherence(self, path: torch.Tensor):
         # Compute vectors between consecutive points
-        vectors = path[:,:]
+        vectors = path[:, :]
 
         # Normalize the vectors
         norms = torch.norm(vectors, dim=1, keepdim=True)
@@ -271,6 +272,7 @@ class EnvHighways2D(EnvBase):
         aggregate_cross_product = torch.sum(cross_products)
 
         return 1 if aggregate_cross_product > 0 else 0
+
 
 if __name__ == '__main__':
     env = EnvHighways2D(

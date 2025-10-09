@@ -1,69 +1,88 @@
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from typing import List
 
 from torch_robotics.environments.env_base import EnvBase
 from torch_robotics.environments.primitives import ObjectField, MultiSphereField, MultiBoxField
-from torch_robotics.environments.utils import create_grid_spheres, sample_non_overlapping_boxes_2d
+from torch_robotics.environments.utils import create_grid_spheres, sample_non_overlapping_boxes_2d, \
+    sample_non_overlapping_spheres_2d
 from torch_robotics.robots import RobotPointMass
 from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
+from mdoc.config.mmd_params import MMDParams as params
 
-
-class EnvDense2D(EnvBase):
+class EnvRandom2D(EnvBase):
 
     def __init__(self,
-                 name='EnvDense2D',
+                 name='EnvRandom2D',
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
+                 # boxes
                  number_of_box=5,
-                 number_of_sphere=5,
-                 # set min_size and max_size to the same to get square
-                 box_min_size=0.12,
-                 box_max_size=0.12,
+                 box_min_size=0.2,
+                 box_max_size=0.2,  # same => squares
                  box_margin=0.15,
-                 box_gap=0.02,
-                 sphere_radius=0.09,
-                 sphere_border = 0.08,
+                 box_gap=0.08,
+                 # spheres
+                 number_of_sphere=5,
+                 sphere_r_min=0.08,  # used by random
+                 sphere_r_max=0.08,  # used by random
+                 sphere_margin=0.15,  # used by random
+                 sphere_gap=0.08,  # used by random
                  obj_list=None,
-                 **kwargs
-                 ):
+                 **kwargs):
+
+        # Safe tensor_args
+        if tensor_args is None:
+            tensor_args = get_default_tensor_args()
 
         if obj_list is None:
-            sphere_fields = create_grid_spheres(
-                rows=number_of_sphere,
-                cols=number_of_sphere,
-                heights=0,  # 2D
-                radius=sphere_radius,
-                distance_from_border=sphere_border,
-                tensor_args=tensor_args,
-            )
+            objs = []
 
-            # (b) random boxes
-            box_centers, box_sizes = sample_non_overlapping_boxes_2d(
-                n_boxes=number_of_box,
-                min_size=box_min_size,
-                max_size=box_max_size,
-                margin=box_margin,
-                gap=box_gap,
-                rng=np.random.default_rng(),
-            )
+            # boxes — avoid boxes just placed
+            box_centers, box_sizes = (None, None)
+            if number_of_box > 0:
+                box_centers, box_sizes = sample_non_overlapping_boxes_2d(
+                    n_boxes=number_of_box,
+                    min_size=box_min_size,
+                    max_size=box_max_size,
+                    margin=box_margin,
+                    gap=box_gap,
+                    rng=np.random.default_rng(),
+                )
+                box_field = MultiBoxField(
+                    np.asarray(box_centers, dtype=float),
+                    np.asarray(box_sizes, dtype=float),
+                    tensor_args=tensor_args,
+                )
+                objs.append(box_field)
 
-            box_field = MultiBoxField(
-                np.asarray(box_centers, dtype=float),
-                np.asarray(box_sizes, dtype=float),
-                tensor_args=tensor_args,
-            )
-
-            obj_list = []
-            obj_list.extend(sphere_fields)
-            obj_list.append(box_field)
+            # spheres — avoid boxes just placed
+            if number_of_sphere > 0:
+                s_centers, s_radii = sample_non_overlapping_spheres_2d(
+                    n_spheres=number_of_sphere,
+                    r_min=sphere_r_min,
+                    r_max=sphere_r_max,
+                    margin=sphere_margin,
+                    gap=sphere_gap,
+                    rng=np.random.default_rng(),
+                    avoid_box_centers=box_centers,
+                    avoid_box_sizes=box_sizes,
+                    avoid_box_gap=0.0,  # extra clearance to boxes if desired
+                )
+                spheres = MultiSphereField(
+                    np.asarray(s_centers, dtype=float),
+                    np.asarray(s_radii, dtype=float),
+                    tensor_args=tensor_args,
+                )
+                objs.append(spheres)
 
         super().__init__(
             name=name,
-            limits=torch.tensor([[-1, -1], [1, 1]], **tensor_args),  # environments limits
-            obj_fixed_list=[ObjectField(obj_list, 'dense2d')],
+            limits=torch.tensor([[-1, -1], [1, 1]], **tensor_args),
+            obj_fixed_list=[ObjectField(objs if obj_list is None else obj_list, 'random2d')],
             precompute_sdf_obj_fixed=precompute_sdf_obj_fixed,
             sdf_cell_size=sdf_cell_size,
             tensor_args=tensor_args,
@@ -74,20 +93,21 @@ class EnvDense2D(EnvBase):
         params = dict(
             n_iters=10000,
             step_size=0.01,
-            n_radius=0.3,
+            n_radius=0.05,
             n_pre_samples=50000,
             max_time=50
         )
 
-        if isinstance(robot, RobotPointMass):
+        from torch_robotics.robots import RobotPlanarDisk
+        if isinstance(robot, RobotPlanarDisk):
             return params
+
         else:
             raise NotImplementedError
 
     def get_gpmp2_params(self, robot=None):
         params = dict(
             n_support_points=64,
-            n_interpolated_points=None,
             dt=0.04,
             opt_iters=300,
             num_samples=64,
@@ -108,7 +128,8 @@ class EnvDense2D(EnvBase):
             },
         )
 
-        if isinstance(robot, RobotPointMass):
+        from torch_robotics.robots import RobotPlanarDisk
+        if isinstance(robot, RobotPlanarDisk):
             return params
         else:
             raise NotImplementedError
@@ -127,10 +148,30 @@ class EnvDense2D(EnvBase):
             pos_only=False,
         )
 
-        if isinstance(robot, RobotPointMass):
+        from torch_robotics.robots import RobotPlanarDisk
+        if isinstance(robot, RobotPlanarDisk):
             return params
+
         else:
             raise NotImplementedError
+
+    def get_skill_pos_seq_l(self, robot=None, start_pos=None, goal_pos=None) -> List[torch.Tensor]:
+        return None
+
+    def compute_traj_data_adherence(self, path: torch.Tensor, fraction_of_length=params.data_adherence_linear_deviation_fraction) -> torch.Tensor:
+        # The score is deviation of the path from a straight line. Cost in {0, 1}.
+        # The score is 1 for each point on the path within a distance less than fraction_of_length * length from
+        # the straight line. The computation is the average of the scores for all points in the path.
+        start_state_pos = path[0][:2]
+        goal_state_pos = path[-1][:2]
+        length = torch.norm(goal_state_pos - start_state_pos)
+        path = path[:, :2]
+        path = torch.stack([path[:, 0], path[:, 1], torch.zeros_like(path[:, 0])], dim=1)
+        start_state_pos = torch.stack([start_state_pos[0], start_state_pos[1], torch.zeros_like(start_state_pos[0])]).unsqueeze(0)
+        goal_state_pos = torch.stack([goal_state_pos[0], goal_state_pos[1], torch.zeros_like(goal_state_pos[0])]).unsqueeze(0)
+        deviation_from_line = torch.norm(torch.cross(goal_state_pos - start_state_pos, path - start_state_pos),
+                                         dim=1) / length
+        return (deviation_from_line < fraction_of_length).float().mean().item()
 
 
 if __name__ == '__main__':
@@ -180,24 +221,48 @@ if __name__ == '__main__':
         )
     ]
 
-    env = EnvDense2D(
+    env = EnvRandom2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),
-        number_of_box=100,
-        number_of_sphere=0,
-        box_min_size=0.05,
-        box_max_size=0.05,
-        # obj_list=obj_list
+        number_of_sphere=5,
+        sphere_r_min=0.08,  # used by random
+        sphere_r_max=0.08,  # used by random
+        sphere_margin=0.15,  # used by random
+        sphere_gap=0.08,  # used by random
+        number_of_box=5,
+        box_min_size=0.2,
+        box_max_size=0.2,
+        box_gap=0.08,
+        box_margin=0.15,
     )
+
     fig, ax = create_fig_and_axes(env.dim)
     env.render(ax)
     plt.show()
 
-    # Render sdf
     fig, ax = create_fig_and_axes(env.dim)
     env.render_sdf(ax, fig)
-
-    # Render gradient of sdf
     env.render_grad_sdf(ax, fig)
+    plt.show()
+
+    # Example 2: truly random non-overlapping spheres (no boxes)
+    env2 = EnvRandom2D(
+        precompute_sdf_obj_fixed=True,
+        sdf_cell_size=0.01,
+        tensor_args=get_default_tensor_args(),
+        number_of_sphere=10,
+        sphere_r_min=0.04,  # used by random
+        sphere_r_max=0.04,
+        sphere_margin=0.15,
+        sphere_gap=0.05,
+
+        number_of_box=10,
+        box_min_size=0.1,
+        box_max_size=0.1,
+        box_margin=0.15,
+        box_gap=0.08,
+    )
+    fig, ax = create_fig_and_axes(env2.dim)
+    env2.render(ax)
     plt.show()
