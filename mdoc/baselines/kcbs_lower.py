@@ -235,5 +235,5 @@ class KCBSLower:
         out.variance_waypoint_trajs_final_free = None
         out.t_total = float(ts[-1])
         out.constraints_l = constraints_l
-        out.trajs_final = smooth_trajs(out.trajs_final)
+        # out.trajs_final = smooth_trajs(out.trajs_final)
         return out

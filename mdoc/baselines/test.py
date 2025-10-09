@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation,PillowWriter
 from itertools import permutations
 from mp_baselines.planners.rrt_star import RRTStar
 
@@ -242,9 +242,10 @@ def animate_path(path, start, targets):
         return [line, point, *patches]
 
     ani = FuncAnimation(fig, update, frames=len(path_np), interval=200, blit=True)
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    ani.save("RRT*_demo.gif", writer=PillowWriter(fps=5))
+    # plt.legend()
+    # plt.grid(True)
+    # plt.show()
 
 
 if __name__ == "__main__":

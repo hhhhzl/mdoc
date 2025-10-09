@@ -28,7 +28,7 @@ from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torc
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
 from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 
-TRAINED_MODELS_DIR = '../../data_trained_models/'
+TRAINED_MODELS_DIR = './data_trained_models/'
 
 
 class MDOCEnsemble(SingleAgentPlanner):
@@ -349,7 +349,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             #     render_planner=False,
             # )
             # plt.show()
-            # import random
+            import random
             # planner_visualizer.animate_robot_trajectories(
             #     trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
             #     plot_trajs=True,

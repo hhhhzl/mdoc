@@ -16,7 +16,7 @@ from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_l
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar, KCBSLower
+from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar, KCBSLower, LatticeLower
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
@@ -57,6 +57,11 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     elif test_config.single_agent_planner_class == 'KCBSLower':
         from mdoc.config.wastar_params import MMPDParams as params
         planner_alg = 'kcbs'
+    elif test_config.single_agent_planner_class == 'LatticeLower':
+        from mdoc.config.wastar_params import MMPDParams as params
+        planner_alg = 'lattice'
+    else:
+        raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
     low_level_planner_model_args = {
         'planner_alg': planner_alg,
@@ -138,6 +143,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         low_level_planner_class = WAStar
     elif "KCBSLower" in test_config.single_agent_planner_class:
         low_level_planner_class = KCBSLower
+    elif "LatticeLower" in test_config.single_agent_planner_class:
+        low_level_planner_class = LatticeLower
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -380,7 +387,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=5,
+        default=10,
         help='Number of agents'
     )
     parser.add_argument(
@@ -408,9 +415,9 @@ def parse_args():
         default='KCBSLower',
         choices=[
             'KCBSLower',
-            'Lattice',
             'WAStar',
-            'WAStarData'
+            'WAStarData',
+            'LatticeLower'
         ],
         help='Single agent planner class'
     )
@@ -437,9 +444,8 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmptyNoWait2D-RobotPlanarDisk',
+        default='EnvEmpty2D-RobotPlanarDisk',
         choices=[
-            ''
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
             'EnvConveyor2D-RobotPlanarDisk',
