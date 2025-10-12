@@ -19,6 +19,7 @@ from mdoc.planners.common import PlannerOutput, SingleAgentPlanner
 from mdoc.models.diffusion_models.mbd_ensemble import ModelBasedDiffusionEnsemble
 from mdoc.common.experiences import PathExperience, PathBatchExperience
 from mdoc.common.pretty_print import *
+from mdoc.utils.accelerators import RolloutAccelerator
 
 from torch_robotics.robots import *
 from torch_robotics import environments
@@ -75,7 +76,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             sphere_constraint_radius: float = 0.15,
             mdoc_score_monte_carlo_samples: int = 64,
             **kwargs
-        ):
+    ):
         super().__init__()
         ####################################
         fix_random_seed(seed)
@@ -240,10 +241,11 @@ class MDOCEnsemble(SingleAgentPlanner):
         ########
         # The start and goal states are in the global frame. We need to convert them to the local frame of the task.
         start_state_pos_local = tasks_ensemble.inverse_transform_q(0, start_state_pos)
-        goal_state_pos_local = tasks_ensemble.inverse_transform_q(len(tasks)-1, goal_state_pos)
+        goal_state_pos_local = tasks_ensemble.inverse_transform_q(len(tasks) - 1, goal_state_pos)
         # A hard condition is a Dict[int, torch.tensor], traj ix to state.
         start_state_hard_cond = datasets[0].get_single_pt_hard_conditions(start_state_pos_local, 0, True)
-        goal_state_hard_cond = datasets[len(model_ids) - 1].get_single_pt_hard_conditions(goal_state_pos_local, -1, True)
+        goal_state_hard_cond = datasets[len(model_ids) - 1].get_single_pt_hard_conditions(goal_state_pos_local, -1,
+                                                                                          True)
         # Add to the hard conds dict. Mapping model id to its hard conditions dictionary.
         hard_conds = {0: start_state_hard_cond}
         if len(model_ids) - 1 in hard_conds:
@@ -252,7 +254,8 @@ class MDOCEnsemble(SingleAgentPlanner):
             hard_conds[len(model_ids) - 1] = goal_state_hard_cond
 
         self.transforms = transforms
-        self.model = ModelBasedDiffusionEnsemble(self.robot, self.models, transforms, start_state_pos, goal_state_pos)
+        self.model = ModelBasedDiffusionEnsemble(self.robot, self.models, transforms, start_state_pos, goal_state_pos, device=device)
+
         # cross conditioning
         self.cross_conds = {}
         for i in range(len(model_ids) - 1):
@@ -330,7 +333,8 @@ class MDOCEnsemble(SingleAgentPlanner):
         # Carry out inference with the constraints. If there is no experience, inference from scratch.
         with TimerCUDA() as timer_inference:
             if experience is None:
-                trajs_normalized_iters_dict, _, _ = self.run_constrained_inference(cost_constraints_l)  # Shape [B (n_samples), H, D]
+                trajs_normalized_iters_dict, _, _ = self.run_constrained_inference(
+                    cost_constraints_l)  # Shape [B (n_samples), H, D]
             # Otherwise, use the experience path as a seed for a local inference call.
             else:
                 trajs_normalized_iters_dict, _, _ = self.run_constrained_local_inference(cost_constraints_l, experience)
@@ -382,7 +386,8 @@ class MDOCEnsemble(SingleAgentPlanner):
             self.recent_call_data.cost_smoothness = results_ensemble['cost_smoothness_trajs_final_free']
             self.recent_call_data.cost_path_length = results_ensemble['cost_path_length_trajs_final_free']
             self.recent_call_data.cost_all = results_ensemble['cost_all_trajs_final_free']
-            self.recent_call_data.variance_waypoint_trajs_final_free = results_ensemble['variance_waypoint_trajs_final_free']
+            self.recent_call_data.variance_waypoint_trajs_final_free = results_ensemble[
+                'variance_waypoint_trajs_final_free']
         else:
             self.recent_call_data.idx_best_traj = None
             self.recent_call_data.traj_final_free_best = None
@@ -477,7 +482,8 @@ class MDOCEnsemble(SingleAgentPlanner):
 
         print("==============")
         print("Got #constraints:", len(cost_constraints_l))
-        print(f'Constraints split to tasks: {task_id_to_cost_constraints_l.keys()}, with num constraints: {[len(v) for v in task_id_to_cost_constraints_l.values()]}')
+        print(
+            f'Constraints split to tasks: {task_id_to_cost_constraints_l.keys()}, with num constraints: {[len(v) for v in task_id_to_cost_constraints_l.values()]}')
 
         return task_id_to_cost_constraints_l
 
@@ -515,8 +521,10 @@ class MDOCEnsemble(SingleAgentPlanner):
         # run extra guiding steps without diffusion
         t_post_diffusion_guide = 0.0
         if self.run_prior_then_guidance:
-            n_post_diffusion_guide_steps = (self.t_start_guide + self.n_diffusion_steps_without_noise) * self.n_guide_steps
-            print(CYAN + f'Running extra guiding steps without diffusion. Num steps:', n_post_diffusion_guide_steps, RESET)
+            n_post_diffusion_guide_steps = (
+                                                       self.t_start_guide + self.n_diffusion_steps_without_noise) * self.n_guide_steps
+            print(CYAN + f'Running extra guiding steps without diffusion. Num steps:', n_post_diffusion_guide_steps,
+                  RESET)
             with TimerCUDA() as timer_post_model_sample_guide:
                 for task_id, guide in self.guides.items():
                     trajs_normalized_iters = trajs_normalized_iters_dict[task_id]
@@ -615,9 +623,9 @@ class MDOCEnsemble(SingleAgentPlanner):
         print(f'percentage free trajs: {self.recent_call_data.fraction_free_trajs * 100:.2f}')
         print(f'percentage collision intensity: {self.recent_call_data.collision_intensity_trajs * 100:.2f}')
         print(f'cost smoothness: {self.recent_call_data.cost_smoothness.mean():.4f}, '
-                  f'{self.recent_call_data.cost_smoothness.std():.4f}')
+              f'{self.recent_call_data.cost_smoothness.std():.4f}')
         print(f'cost path length: {self.recent_call_data.cost_path_length.mean():.4f}, '
-                  f'{self.recent_call_data.cost_path_length.std():.4f}')
+              f'{self.recent_call_data.cost_path_length.std():.4f}')
         cost_best_free_traj = torch.min(self.recent_call_data.cost_all).item()
         print(f'cost best: {cost_best_free_traj:.3f}')
         # variance of waypoints

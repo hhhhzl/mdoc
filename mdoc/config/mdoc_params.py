@@ -4,7 +4,7 @@ import torch
 # A central location for aggregating the parameters used across files.
 class MDOCParams:
     # Robot parameters.
-    robot_planar_disk_radius = 0.04
+    robot_planar_disk_radius = 0.05
 
     # Single-agent planning parameters.
     use_guide_on_extra_objects_only = False
