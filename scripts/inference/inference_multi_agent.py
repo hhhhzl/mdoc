@@ -28,14 +28,10 @@ from mdoc.planners.single_agent import (
     MPDEnsemble,
     WAStar,
     KCBSLower,
-    LatticeLower
 )
 
 TRAINED_MODELS_DIR = './data_trained_models/'
 allow_ops_in_compiled_graph()
-device = get_torch_device(params.device)
-print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
-tensor_args = {'device': device, 'dtype': torch.float32}
 
 
 def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
@@ -59,9 +55,6 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     elif test_config.single_agent_planner_class == 'KCBSLower':
         from mdoc.config.wastar_params import MMPDParams as params
         planner_alg = 'kcbs'
-    elif test_config.single_agent_planner_class == 'LatticeLower':
-        from mdoc.config.wastar_params import MMPDParams as params
-        planner_alg = 'lattice'
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -145,8 +138,6 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         low_level_planner_class = WAStar
     elif "KCBSLower" in test_config.single_agent_planner_class:
         low_level_planner_class = KCBSLower
-    elif "LatticeLower" in test_config.single_agent_planner_class:
-        low_level_planner_class = LatticeLower
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
 
@@ -503,6 +494,24 @@ if __name__ == '__main__':
     config.runtime_limit = args.rl
     config.time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     config.render_animation = args.ra
+
+    if config.single_agent_planner_class in ['MDOCEnsemble']:
+        from mdoc.config.mdoc_params import MDOCParams as params
+        device = get_torch_device(params.device)
+    elif config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
+        from mdoc.config.mmd_params import MMDParams as params
+        device = get_torch_device(params.device)
+    elif config.single_agent_planner_class == 'WAStar':
+        from mdoc.config.wastar_params import MMPDParams as params
+        device = get_torch_device(params.device)
+    elif config.single_agent_planner_class == 'KCBSLower':
+        from mdoc.config.wastar_params import MMPDParams as params
+        device = get_torch_device(params.device)
+    else:
+        raise ValueError(f'Unknown single agent planner class: {config.single_agent_planner_class}')
+
+    print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
+    tensor_args = {'device': device, 'dtype': torch.float32}
 
     if args.example_type == "single_tile":
         config.global_model_ids = [[args.e]]

@@ -89,6 +89,7 @@ class CBS:
     """
     Conflict-Based Search (CBS) algorithm.
     """
+
     def __init__(self,
                  low_level_planner_l,
                  start_l: List[torch.Tensor],
@@ -164,13 +165,15 @@ class CBS:
         # Find conflicts.
         conflicts = []
         densification_factor = 2 if EdgeConflict in self.conflict_type_to_constraint_types.keys() else 1
-        paths_pos_l_dense = densify_trajs(paths_pos_l, densification_factor)  # n elements of shape (H * densification_factor, q_dim)
+        paths_pos_l_dense = densify_trajs(paths_pos_l,
+                                          densification_factor)  # n elements of shape (H * densification_factor, q_dim)
 
         # Check collisions for all time steps at once.
         paths_pos_b_dense = torch.stack(paths_pos_l_dense)  # n_robots, H, q_dim
         # Change to (H, n_robots, q_dim) for the robot method.
         paths_pos_b_dense = paths_pos_b_dense.permute(1, 0, 2)
-        collisions_pairwise_b, collision_points_b = self.reference_robot.check_rr_collisions(paths_pos_b_dense)  # Shapes (H, n_robots, n_robots) bool, (H, n_robots, n_robots, ws_dim) float
+        collisions_pairwise_b, collision_points_b = self.reference_robot.check_rr_collisions(
+            paths_pos_b_dense)  # Shapes (H, n_robots, n_robots) bool, (H, n_robots, n_robots, ws_dim) float
         # Check all time steps that have collisions in then.
         collision_indices = torch.nonzero(
             collisions_pairwise_b.int())  # Shape: (num_collisions, 3), each row [t_dense, agent_id_a, agent_id_b]
@@ -190,7 +193,7 @@ class CBS:
                     VertexConflict([agent_id_a, agent_id_b],
                                    [
                                        paths_pos_l[agent_id_a][t_global_from],  # Corresponds to a graph vertex.
-                                       paths_pos_l[agent_id_b][t_global_from]   # Corresponds to a graph vertex.
+                                       paths_pos_l[agent_id_b][t_global_from]  # Corresponds to a graph vertex.
                                    ],
                                    int(t_global_from)))
 
@@ -215,12 +218,12 @@ class CBS:
                 conflicts.append(
                     PointConflict([agent_id_a, agent_id_b],
                                   p_l=[
-                                        paths_pos_l_dense[agent_id_a][t_dense],
-                                        paths_pos_l_dense[agent_id_b][t_dense]
+                                      paths_pos_l_dense[agent_id_a][t_dense],
+                                      paths_pos_l_dense[agent_id_b][t_dense]
                                   ],
                                   q_l=[
-                                       midpoint_state_pos,
-                                       midpoint_state_pos
+                                      midpoint_state_pos,
+                                      midpoint_state_pos
                                   ],
                                   t_from=int(t_global_from),
                                   t_to=int(t_global_to)))
@@ -246,7 +249,7 @@ class CBS:
                     ax=ax,
                     trajs=paths_l[agent_id],
                     start_state=self.start_state_pos_l[agent_id],  # None,  #
-                    goal_state= self.goal_state_pos_l[agent_id],  # None,  #
+                    goal_state=self.goal_state_pos_l[agent_id],  # None,  #
                     colors=[self.agent_color_l[agent_id]],
                     constraints_l=constraints_l,
                     show_robot_in_image=show_robot_in_image
@@ -360,6 +363,8 @@ class CBS:
                 success_status = TrialSuccessStatus.FAIL_RUNTIME_LIMIT
                 break
 
+            loop_time = time.time()
+
         # Return the best paths. Smoothed and padded to the same length accounting for start times.
         best_path_l = [state.path_bl[i][ix_best_path_in_batch].squeeze(0) for i, ix_best_path_in_batch in
                        enumerate(state.ix_best_path_in_batch_l)]
@@ -404,6 +409,7 @@ class CBS:
                     agent_experience = PathBatchExperience(new_state.path_bl[agent_id])
                 else:
                     raise ValueError(f'Invalid experience reuse strategy {self.experience_reuse_strategy}.')
+
             planner_output = self.low_level_planner_l[agent_id](self.start_state_pos_l[agent_id],
                                                                 self.goal_state_pos_l[agent_id],
                                                                 constraints_l=agent_constraint_l,

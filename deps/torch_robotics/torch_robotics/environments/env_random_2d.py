@@ -221,7 +221,7 @@ if __name__ == '__main__':
         )
     ]
 
-    env = EnvRandom2D(
+    env_sparse = EnvRandom2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),
@@ -237,17 +237,33 @@ if __name__ == '__main__':
         box_margin=0.15,
     )
 
-    fig, ax = create_fig_and_axes(env.dim)
-    env.render(ax)
+    fig, ax = create_fig_and_axes(env_sparse.dim)
+    env_sparse.render(ax)
     plt.show()
 
-    fig, ax = create_fig_and_axes(env.dim)
-    env.render_sdf(ax, fig)
-    env.render_grad_sdf(ax, fig)
+
+    env_dense = EnvRandom2D(
+        precompute_sdf_obj_fixed=True,
+        sdf_cell_size=0.01,
+        tensor_args=get_default_tensor_args(),
+        number_of_sphere=7,
+        sphere_r_min=0.08,  # used by random
+        sphere_r_max=0.08,  # used by random
+        sphere_margin=0.15,  # used by random
+        sphere_gap=0.08,  # used by random
+        number_of_box=8,
+        box_min_size=0.2,
+        box_max_size=0.2,
+        box_gap=0.08,
+        box_margin=0.15,
+    )
+
+    fig, ax = create_fig_and_axes(env_dense.dim)
+    env_dense.render(ax)
     plt.show()
 
     # Example 2: truly random non-overlapping spheres (no boxes)
-    env2 = EnvRandom2D(
+    env_large = EnvRandom2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),
@@ -263,6 +279,7 @@ if __name__ == '__main__':
         box_margin=0.15,
         box_gap=0.08,
     )
-    fig, ax = create_fig_and_axes(env2.dim)
-    env2.render(ax)
+
+    fig, ax = create_fig_and_axes(env_large.dim)
+    env_large.render(ax)
     plt.show()

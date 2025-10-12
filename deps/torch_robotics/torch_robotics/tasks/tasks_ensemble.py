@@ -82,7 +82,6 @@ class PlanningTaskEnsemble(TaskEnsemble):
             datasets,
             traj_normalized
     ):
-        # trajs_iters = traj_normalized
         trajs_iters = datasets[task_id].unnormalize_trajectories(traj_normalized)
         trajs_final = trajs_iters[-1]
         trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs, _ = \

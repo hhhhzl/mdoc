@@ -10,7 +10,7 @@ from mp_baselines.planners.mbd import MDOC
 from mp_baselines.planners.rrt_star import RRTStar
 from mp_baselines.planners.rrt_connect import RRTConnect
 
-from torch_robotics.environments import EnvUMaze2D, EnvRandom2D, EnvSymBottleneck2D, EnvTennis2D
+from torch_robotics.environments import EnvUMaze2D, EnvRandom2D, EnvSymBottleneck2D, EnvTennis2D, EnvEmpty2D
 from torch_robotics.robots.robot_planar_disk import RobotPlanarDisk
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.torch_utils.seed import fix_random_seed
@@ -89,8 +89,8 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='Tennis',
-        choices=['Narrow', 'UMaze', 'Random', "Tennis"],
+        default='Narrow',
+        choices=['Narrow', 'UMaze', 'Random', "Tennis", "Empty"],
         help='env'
     )
     parser.add_argument(
@@ -108,13 +108,18 @@ if __name__ == '__main__':
     args = parse_args()
     device = get_torch_device()
     tensor_args = {'device': 'cpu', 'dtype': torch.float32}
-    seed = 0
+    seed = 42
     H = 128  # horizon
     dt = 0.04
     opt_iters_outer = 1
 
     # --------------------------- build envs ------------------------------- #
     envs = {
+        "Empty": EnvEmpty2D(
+            precompute_sdf_obj_fixed=True,
+            sdf_cell_size=0.01,
+            tensor_args=tensor_args
+        ),
         "Narrow": EnvSymBottleneck2D(
             corridor_width=0.25,
             wall_thickness=0.28,
@@ -143,8 +148,8 @@ if __name__ == '__main__':
             box_max_size=0.1,
         ),
         "Tennis": EnvTennis2D(
-            corridor_width=0.42,
-            wall_thickness=0.02,
+            corridor_width=0.42 if args.type == "flat" else 0.32,
+            wall_thickness=0.02 if args.type == "flat" else 0.28,
             tensor_args=tensor_args,
             chair_to_center=0.4,
             chair_length=0.4,
@@ -244,7 +249,7 @@ if __name__ == '__main__':
                 start_state_pos=start_state,  # (2,)
                 goal_state_pos=goal_state,  # (2,)
                 rollout_steps=H,
-                n_diffusion_steps=100,
+                n_diffusion_steps=100 if args.type == "flat" else 200,
                 n_samples=128,
                 temp_sample=0.001,
                 transforms=None,
