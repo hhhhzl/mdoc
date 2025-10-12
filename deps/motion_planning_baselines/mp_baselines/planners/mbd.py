@@ -116,7 +116,7 @@ class MDOC(MPPlanner):
 
         costs, q_seq, _ = self._ensemble._rollout_single_batch_new2_ultrafast(
             model_id=0,
-            state_init=self._ensemble.state_inits,
+            state_q=self._ensemble.state_inits.q,
             us=controls,
         )
         return q_seq.detach().clone()
@@ -170,8 +170,8 @@ class MDOC(MPPlanner):
         actions = traj_0s[..., self.state_dim:]
 
         # Batch rollout & cost with collision awareness
-        costs, q_seq, free_mask = self._ensemble._rollout_single_batch_new2(
-            model_id=0, state_init=self._ensemble.state_inits, us=actions
+        costs, q_seq, free_mask = self._ensemble._rollout_single_batch_new2_ultrafast(
+            model_id=0, state_q=self._ensemble.state_inits.q, us=actions
         )
 
         # Importance weights (softmax over normalized negative costs)

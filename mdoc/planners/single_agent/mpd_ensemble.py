@@ -362,6 +362,7 @@ class MPDEnsemble(SingleAgentPlanner):
         for model_index in self.models.keys():
             trajs_normalized_iters = trajs_normalized_iters_dict[model_index]
             # Unnormalize trajectory samples from the models.
+
             trajs_iters, trajs_final, trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs = (
                 self.task.get_traj_unnormalized(model_index, self.datasets, trajs_normalized_iters))
             results_ensemble[model_index] = self.task.get_stats(model_index, trajs_iters, trajs_final,

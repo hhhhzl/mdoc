@@ -28,16 +28,15 @@ def _iter_mapping_items(a: Mapping):
 # ---------- core ----------
 def _tree_copy_into_(dst: Any, src: Any) -> None:
     """
-    递归把 src 的内容拷到 dst。容器结构必须匹配。
-    - Tensor 叶子：严格校验 shape/dtype/device，调用 copy_。
-    - Dataclass：按字段递归。
-    - Mapping：键集合一致；对每个 key：
-        * 若子项仍是容器/张量/数据类 -> 递归
-        * 否则（普通 Python 叶子，如对象/None/数） -> 直接 dst[k] = src[k]
-    - Sequence（list/tuple/...）：长度一致；
-        * list 可对叶子原地赋值（dst[i] = src[i]）
-        * tuple 不可原地赋值：若遇到 tuple 叶子，要求其元素同构并递归，否则建议改成 list
-    其他叶子：忽略（视为常量，不拷贝）
+    Tensor leaves: strictly validate shape/dtype/device, then call copy_.
+    Dataclass: recurse by fields.
+    Mapping: key sets must be identical; for each key
+    If the value is still a container/tensor/dataclass → recurse.
+    Otherwise (plain Python leaf like object/None/number) → set dst[k] = src[k].
+    Sequence (list/tuple/…): lengths must match;
+    For lists, you may assign leaves in place (dst[i] = src[i]).
+    For tuples, in-place assignment isn’t allowed: if you encounter a tuple leaf, require elementwise structural isomorphism and recurse; otherwise, consider changing it to a list.
+    Other leaves: ignore (treat as constants; do not copy).
     """
     # Tensor
     if torch.is_tensor(dst) and torch.is_tensor(src):

@@ -142,7 +142,7 @@ def plot_paths(
         mpatches.Patch(color=colors[method], label=method.upper())
         for method in path_dict.keys()
     ]
-    ax.legend(handles=handles, loc='upper left')
+    ax.legend(handles=handles, loc='upper left', fontsize=18)
 
     os.makedirs(Path(save_path).parent, exist_ok=True)
     if not save_path.endswith('.png'):
