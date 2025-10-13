@@ -26,7 +26,7 @@ SOFTWARE.
 import os
 from math import ceil
 from pathlib import Path
-
+import einops
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
 # Project imports.
 from experiment_launcher.utils import fix_random_seed

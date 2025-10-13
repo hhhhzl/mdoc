@@ -61,7 +61,7 @@ class MultiAgentPlanningExperimentConfig:
                         single_trial_config.runtime_limit = self.runtime_limit
                         single_trial_config.render_animation = self.render_animation
                         single_trial_config.start_state_pos_l, single_trial_config.goal_state_pos_l, \
-                            single_trial_config.global_model_ids, single_trial_config.agent_skeleton_l = \
+                        single_trial_config.global_model_ids, single_trial_config.agent_skeleton_l = \
                             start_state_pos_l_l[trial_number], goal_state_pos_l_l[trial_number], \
                             global_model_ids_l_l[trial_number], agent_skeleton_l_l[trial_number]
                         single_trial_configs.append(single_trial_config)
@@ -167,6 +167,8 @@ class MultiAgentPlanningSingleTrialResult:
     path_length_per_agent = 0.0
     # Path smoothness.
     mean_path_acceleration_per_agent = 0.0
+    mean_jerk = 0.0
+    geometric_smoothness = 0.0  # Laplacian
     # Path Start and Goal.
     start_state_pos_l = []
     goal_state_pos_l = []
@@ -205,6 +207,8 @@ class MultiAgentPlanningSingleTrialResult:
             planning_time: {self.planning_time}
             path_length_per_agent: {self.path_length_per_agent}
             mean_path_acceleration_per_agent: {self.mean_path_acceleration_per_agent}
+            geometric_smoothness: {self.geometric_smoothness}
+            mean_jerk: {self.mean_jerk}
             num_ct_expansions: {self.num_ct_expansions}
         """
         return print_str

@@ -13,7 +13,7 @@ from einops._torch_specific import allow_ops_in_compiled_graph  # requires einop
 # Project imports.
 from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torch_model_params
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints, \
-    compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
+    compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos, compute_smoothness_metric
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
@@ -335,8 +335,17 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
                 agent_path_vel = low_level_planner_l[agent_id].robot.get_velocity(paths_l[agent_id]).unsqueeze(0)
 
             single_trial_result.mean_path_acceleration_per_agent += (
-                compute_average_acceleration_from_pos_vel(agent_path_pos, agent_path_vel).item())
+                compute_smoothness_metric(agent_path_pos, agent_path_vel, metric="avg_acc").item())
+
+            single_trial_result.geometric_smoothness += (
+                compute_smoothness_metric(agent_path_pos, agent_path_vel, metric="laplacian").item())
+
+            single_trial_result.mean_jerk += (
+                compute_smoothness_metric(agent_path_pos, agent_path_vel, metric="avg_jerk").item())
+
         single_trial_result.mean_path_acceleration_per_agent /= num_agents
+        single_trial_result.geometric_smoothness /= num_agents
+        single_trial_result.mean_jerk /= num_agents
     # ============================
     # Save the results and config.
     # ============================
