@@ -15,6 +15,7 @@ def compute_path_length_from_pos(trajs_pos):
     path_length = torch.linalg.norm(torch.diff(trajs_pos, dim=-2), dim=-1).sum(-1)
     return path_length
 
+
 def compute_variance_waypoints(trajs, robot):
     assert trajs.ndim == 3  # batch, horizon, state_dim
     trajs_pos = robot.get_position(trajs)
@@ -63,3 +64,36 @@ def compute_average_acceleration_from_pos_vel(trajs_pos, trajs_vel):
     average_acceleration = acceleration_magnitudes.mean(-1)
 
     return average_acceleration
+
+
+def compute_smoothness_metric(trajs_pos, trajs_vel=None, robot=None, dt=None, metric="avg_acc"):
+    """
+    dt is optional; only used if trajs_vel not precomputed or not scaled.
+    """
+    assert trajs_pos.ndim == 3
+    assert trajs_vel.ndim == 3
+
+    if trajs_vel is None:
+        assert robot is not None
+        trajs_vel = robot.get_velocity(trajs_pos)
+
+    if dt is not None:
+        acc = torch.diff(trajs_vel, dim=-2) / dt
+    else:
+        acc = torch.diff(trajs_vel, dim=-2)
+
+    if metric == "avg_acc":
+        val = acc.norm(dim=-1).mean(-1)
+    elif metric == "sum_acc":
+        val = acc.norm(dim=-1).sum(-1)
+    elif metric == "avg_jerk":
+        jerk = torch.diff(acc, dim=-2)
+        if dt is not None:
+            jerk /= dt
+        val = jerk.norm(dim=-1).mean(-1)
+    elif metric == "laplacian":
+        val = ((trajs_pos[..., 2:, :] - 2 * trajs_pos[..., 1:-1, :] + trajs_pos[..., :-2, :]) ** 2).sum(-1).mean(-1)
+    else:
+        raise ValueError(f"Unknown metric type: {metric}")
+    return val
+
