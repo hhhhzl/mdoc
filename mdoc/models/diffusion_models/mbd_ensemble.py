@@ -274,7 +274,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         )
 
         def _fn(actions: torch.Tensor, constraints):
-            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
+            return self._rollout_double_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
                                                    constraints=constraints)
 
         from mdoc.utils.accelerators import RolloutAccelerator
@@ -569,61 +569,85 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         # h(q) = sdf(q) - (R + margin) >= 0
         # n = ∇h/||∇h||, hdot = n·v
         # Enforce next-step h_{t+1} >= 0  =>  n·a >= ( -h - (n·v) dt ) * 2 / dt^2
-        R = mparams.robot_planar_disk_radius
+        # R = mparams.robot_planar_disk_radius
+        #
+        # a_cum = torch.cumsum(a_safe, dim=1)  # (B,H,2)
+        # a_prefix = torch.nn.functional.pad(a_cum[:, :-1, :], (0, 0, 0, 1))  # (B,H,2), exclusive
+        # v_t = v0 + a_prefix * dt  # (B,H,2)
+        # v_flat = v_t.reshape(B * H, 2)  # (B*H,2)
+        # v_norm = v_flat.norm(dim=-1)  # (B*H,)
+        # a_max = getattr(self, "a_max", 2.0)
+        # margin = 0.02 + 0.20 * v_norm * dt + (v_norm * v_norm) / (2.0 * (a_max + 1e-6))  # (B*H,)
+        # h = sdf_flat - (R + margin)  # (B*H,)
+        #
+        # Anorm = A.norm(dim=-1)  # (B*H,)
+        # goodA = (Anorm > 1e-9)
+        # n = A / (Anorm.view(-1, 1) + 1e-12)  # (B*H,2)
+        # hdot = (n * v_flat).sum(dim=-1)  # (B*H,)
+        #
+        # dt2 = dt * dt
+        # b_dt = ((-h - hdot * dt) * 2.0) / (dt2 + 1e-12)  # (B*H,)
+        #
+        # k0_base, k1_base = 1.0, 2.0
+        # k0 = k0_base + 3.0 / (h.abs() + 1e-3)  # (B*H,)
+        # k1 = k1_base + 0.5 * v_norm  # (B*H,)
+        # b_hocbf = -k1 * hdot - k0 * h  # (B*H,)
+        #
+        # eta1 = 2.0
+        # b_vel = (-eta1 * h - hdot) / (dt + 1e-12)  # (B*H,)
+        #
+        # b = torch.maximum(b_dt, torch.maximum(b_hocbf, b_vel))  # (B*H,)
+        # tau = (R + margin) * 3.0
+        # need = goodA & (h < tau)
+        #
+        # a_nom = a_flat  # (B*H,2)
+        # lhs = (n * a_nom).sum(dim=-1)  # n·a_nom, (B*H,)
+        # n_norm2 = (n * n).sum(dim=-1, keepdim=True) + 1e-12  # ≈1
+        # viol = need & (lhs < b)
+        #
+        # delta = ((b - lhs).clamp_min(0.0) / n_norm2.squeeze(-1))  # (B*H,)
+        # a_flat = a_nom + (delta * viol.to(a_nom.dtype)).unsqueeze(-1) * n  # (B*H,2)
+        #
+        # lhs2 = (n * a_flat).sum(dim=-1)
+        # viol2 = need & (lhs2 < b)
+        # delta2 = ((b - lhs2).clamp_min(0.0) / n_norm2.squeeze(-1))
+        # a_flat = a_flat + (delta2 * viol2.to(a_nom.dtype)).unsqueeze(-1) * n
+        #
+        # step = (-h * 0.5).clamp_min(0.0).clamp_max(0.10)  # (B*H,)
+        # q_ws_flat_new = q_ws_flat + step.unsqueeze(-1) * n  # (B*H,2)
+        # mask_si = (h < 0.0).view(-1, 1)
+        # blended = torch.where(mask_si, q_ws_flat_new - offset, q_init_exp) if has_tf else torch.where(mask_si,
+        #                                                                                               q_ws_flat_new,
+        #                                                                                               q_init_exp)
+        # q_init_exp.copy_(blended)
+        #
+        # # reshape back
+        # a_safe = a_flat.view(B, H, 2)
 
+        R = mparams.robot_planar_disk_radius
         a_cum = torch.cumsum(a_safe, dim=1)  # (B,H,2)
-        a_prefix = torch.nn.functional.pad(a_cum[:, :-1, :], (0, 0, 0, 1))  # (B,H,2), exclusive
+        a_prefix = torch.nn.functional.pad(a_cum[:, :-1, :], (0, 0, 0, 1))  # (B,H,2)
         v_t = v0 + a_prefix * dt  # (B,H,2)
         v_flat = v_t.reshape(B * H, 2)  # (B*H,2)
-        v_norm = v_flat.norm(dim=-1)  # (B*H,)
-        a_max = getattr(self, "a_max", 2.0)
-        margin = 0.02 + 0.20 * v_norm * dt + (v_norm * v_norm) / (2.0 * (a_max + 1e-6))  # (B*H,)
-        h = sdf_flat - (R + margin)  # (B*H,)
 
+        margin0 = 0.01
+        h = sdf_flat - (R + margin0)  # (B*H,)
         Anorm = A.norm(dim=-1)  # (B*H,)
         goodA = (Anorm > 1e-9)
         n = A / (Anorm.view(-1, 1) + 1e-12)  # (B*H,2)
+
         hdot = (n * v_flat).sum(dim=-1)  # (B*H,)
-
-        dt2 = dt * dt
-        b_dt = ((-h - hdot * dt) * 2.0) / (dt2 + 1e-12)  # (B*H,)
-
-        k0_base, k1_base = 1.0, 2.0
-        k0 = k0_base + 3.0 / (h.abs() + 1e-3)  # (B*H,)
-        k1 = k1_base + 0.5 * v_norm  # (B*H,)
-        b_hocbf = -k1 * hdot - k0 * h  # (B*H,)
-
-        eta1 = 2.0
-        b_vel = (-eta1 * h - hdot) / (dt + 1e-12)  # (B*H,)
-
-        b = torch.maximum(b_dt, torch.maximum(b_hocbf, b_vel))  # (B*H,)
-        tau = (R + margin) * 3.0
+        k0, k1 = 1, 4
+        b = -(k1 * hdot + k0 * h)  # (B*H,)
+        tau = 0.05
         need = goodA & (h < tau)
 
         a_nom = a_flat  # (B*H,2)
-        lhs = (n * a_nom).sum(dim=-1)  # n·a_nom, (B*H,)
-        n_norm2 = (n * n).sum(dim=-1, keepdim=True) + 1e-12  # ≈1
-        viol = need & (lhs < b)
-
-        delta = ((b - lhs).clamp_min(0.0) / n_norm2.squeeze(-1))  # (B*H,)
-        a_flat = a_nom + (delta * viol.to(a_nom.dtype)).unsqueeze(-1) * n  # (B*H,2)
-
-        lhs2 = (n * a_flat).sum(dim=-1)
-        viol2 = need & (lhs2 < b)
-        delta2 = ((b - lhs2).clamp_min(0.0) / n_norm2.squeeze(-1))
-        a_flat = a_flat + (delta2 * viol2.to(a_nom.dtype)).unsqueeze(-1) * n
-
-        step = (-h * 0.5).clamp_min(0.0).clamp_max(0.10)  # (B*H,)
-        q_ws_flat_new = q_ws_flat + step.unsqueeze(-1) * n  # (B*H,2)
-        mask_si = (h < 0.0).view(-1, 1)
-        blended = torch.where(mask_si, q_ws_flat_new - offset, q_init_exp) if has_tf else torch.where(mask_si,
-                                                                                                      q_ws_flat_new,
-                                                                                                      q_init_exp)
-        q_init_exp.copy_(blended)
-
-        # reshape back
+        lhs = (n * a_nom).sum(dim=-1)  # (B*H,)
+        den = (n * n).sum(dim=-1).add_(1e-9)  # ≈1
+        delta = ((b - lhs).clamp_min(0.0) / den) * need.to(a_nom.dtype)
+        a_flat = a_nom + delta.unsqueeze(-1) * n  # (B*H,2)
         a_safe = a_flat.view(B, H, 2)
-
         # -------------------- integrate: double integrator --------------------
         v_seq = v0 + torch.cumsum(a_safe * dt, dim=1)  # (B,H,2)
         # q_{t+1} = q_t + v_t*dt + 0.5*a_t*dt^2
@@ -665,13 +689,32 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             n_s = sel_A / (sel_A.norm(dim=-1, keepdim=True) + 1e-12)  # (B,H,K,2)
             hdot_s = (n_s * v_seq.unsqueeze(2)).sum(dim=-1)  # (B,H,K)
 
-            b_dt_s = ((-sel_h - hdot_s * dt) * 2.0) / (dt * dt + 1e-12)  # (B,H,K)
-            k0_bh = k0.view(B, H).unsqueeze(-1)  # (B,H,1)
-            k1_bh = k1.view(B, H).unsqueeze(-1)  # (B,H,1)
-            b_hocbf = -k1_bh * hdot_s - k0_bh * sel_h  # (B,H,K)
-            b_vel_s = (-eta1 * sel_h - hdot_s) / (dt + 1e-12)  # (B,H,K)
+            # b_dt_s = ((-sel_h - hdot_s * dt) * 2.0) / (dt * dt + 1e-12)  # (B,H,K)
+            # k0_bh = k0.view(B, H).unsqueeze(-1)  # (B,H,1)
+            # k1_bh = k1.view(B, H).unsqueeze(-1)  # (B,H,1)
+            # b_hocbf = -k1_bh * hdot_s - k0_bh * sel_h  # (B,H,K)
+            # b_vel_s = (-eta1 * sel_h - hdot_s) / (dt + 1e-12)  # (B,H,K)
+            #
+            # sel_b = torch.maximum(b_dt_s, torch.maximum(b_hocbf, b_vel_s))  # (B,H,K)
 
-            sel_b = torch.maximum(b_dt_s, torch.maximum(b_hocbf, b_vel_s))  # (B,H,K)
+            idx = torch.topk(dist_masked, k=k, dim=-1, largest=False).indices  # (B,H,K)
+            idx_e = idx.unsqueeze(-1).expand(-1, -1, -1, 2)  # (B,H,K,2)
+
+            A_unit_all = diff / (dist.unsqueeze(-1) + 1e-12)  # (B,H,N,2)
+            sel_n = torch.gather(A_unit_all, 2, idx_e)  # (B,H,K,2)
+            sel_h = torch.gather(h_s, 2, idx)  # (B,H,K)
+
+            v_rep = v_seq.unsqueeze(2).expand(-1, -1, k, -1)  # (B,H,K,2)
+            hdot_k = (sel_n * v_rep).sum(dim=-1)  # (B,H,K)
+            sel_b = -(k1 * hdot_k + k0 * sel_h)
+
+            # hdot_k = n_k · v
+
+            # lhs_k = (sel_n * a_safe.unsqueeze(2)).sum(dim=-1)  # (B,H,K)
+            # den_k = (sel_n * sel_n).sum(dim=-1).add_(1e-9)  # (B,H,K)
+            # need_k = (sel_h < 0.04)
+            # delta_k = ((sel_b - lhs_k).clamp_min(0.0) / den_k) * need_k.to(a_safe.dtype)
+            # a_safe = a_safe + (delta_k.unsqueeze(-1) * sel_n).sum(dim=2)
 
             U = a_safe.clone()
             for kk in range(k):
@@ -724,7 +767,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         free_mask = torch.ones(B, dtype=torch.bool, device=device)
 
-        w_T = getattr(self, "w_T_base", 20)
+        w_T = getattr(self, "w_T_base", 8)
         terminal_cost = w_T * dist_to_goal[:, -1]
         cost_sum = runtime_cost.sum(dim=1) + terminal_cost
 
@@ -1443,7 +1486,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if self.compile:
             costs, q_seq, free_mask = self._acc_rollout.run(actions, self.constraints_ro)
         else:
-            costs, q_seq, free_mask = self._rollout_single_batch_new2_ultrafast(model_id, self.state_inits.q, actions)
+            costs, q_seq, free_mask = self._rollout_double_batch_new2(model_id, self.state_inits.q, actions, self.constraints_ro)
 
         traj_0s[..., :self.robot.q_dim] = q_seq
 
@@ -1535,6 +1578,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         traj_proj = traj_i_m1.clone()
         traj_proj[..., :self.robot.q_dim] = q_seq
         traj_i_m1 = (1.0 - proj_weight) * traj_i_m1 + proj_weight * traj_proj
+        traj_i_m1[:, :1, :self.robot.q_dim] = self.start_state_pos
+        traj_i_m1[:, -1:, :self.robot.q_dim] = self.goal_state_pos
 
         best_idx = torch.where(free_mask)[0][costs[free_mask].argmin()]
         best_traj_sample = traj_0s[best_idx]
