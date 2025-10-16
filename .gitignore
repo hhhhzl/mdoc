@@ -10,6 +10,7 @@ __pycache__/
 *$py.class
 /results
 /logs
+/wandb
 
 # C extensions
 *.so
