@@ -2,6 +2,9 @@
 
 set -e
 
+# install unzip
+# apt-get update && apt-get install -y unzip
+
 cd ../../
 MODEL_SIZE="full"
 
