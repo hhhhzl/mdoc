@@ -1,6 +1,6 @@
-import collections
 import random
 from typing import List
+from collections.abc import Mapping
 
 import numpy as np
 import torch
@@ -29,7 +29,7 @@ def get_default_tensor_args(device=None):
 
 
 def dict_to_device(ob, device):
-    if isinstance(ob, collections.Mapping):
+    if isinstance(ob, Mapping):
         return {k: dict_to_device(v, device) for k, v in ob.items()}
     else:
         return ob.to(device)

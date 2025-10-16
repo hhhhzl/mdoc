@@ -11,6 +11,7 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 ########################################################################################################################
 # LAUNCHER
+# Note: Training is only support on GPU Now
 
 LOCAL = is_local()
 TEST = False
@@ -24,7 +25,7 @@ N_CORES = N_EXPS_IN_PARALLEL * 4
 MEMORY_SINGLE_JOB = 12000
 MEMORY_PER_CORE = N_EXPS_IN_PARALLEL * MEMORY_SINGLE_JOB // N_CORES
 PARTITION = 'gpu' if USE_CUDA else 'amd3,amd2,amd'
-GRES = 'gpu:1' if USE_CUDA else None  # gpu:rtx2080:1, gpu:rtx3080:1, gpu:rtx3090:1, gpu:a5000:1
+GRES = 'gpu:0' if USE_CUDA else None  # gpu:rtx2080:1, gpu:rtx3080:1, gpu:rtx3090:1, gpu:a5000:1
 CONDA_ENV = 'mdoc'
 
 
@@ -56,7 +57,8 @@ dataset_subdir_l = [
     # 'EnvConveyor2D-RobotPlanarDisk',
     # 'EnvDropRegion2D-RobotPlanarDisk',
     # 'EnvHighways2D-RobotPlanarDisk',
-    'EnvEmptyNoWait2D-RobotPlanarDisk',
+    # 'EnvEmptyNoWait2D-RobotPlanarDisk',
+    'EnvRandom2D-RobotPlanarDisk'
 ]
 
 include_velocity_l = [
@@ -93,7 +95,7 @@ lr = 3e-4
 
 wandb_options = dict(
     wandb_mode='online',  # "online", "offline" or "disabled"
-    wandb_entity='wandb_username',  # "username"
+    wandb_entity='zhilinhe-carnegie-mellon-university',  # "username" // "teamname"
     wandb_project=exp_name
 )
 

@@ -188,7 +188,7 @@ def train(
                     train_batch_dict = dict_to_device(train_batch_dict, tensor_args['device'])
 
                     # Compute losses
-                    with torch.autocast(device_type=get_torch_device(), dtype=torch.float16, enabled=use_amp):
+                    with torch.autocast(device_type=get_torch_device(device=tensor_args['device']), dtype=torch.float16, enabled=use_amp):
                         train_losses, train_losses_info = loss_fn(model, train_batch_dict, train_subset.dataset)
 
                     train_loss_batch = 0.
