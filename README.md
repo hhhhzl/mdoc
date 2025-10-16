@@ -1,10 +1,10 @@
-# Model-Based Diffusion Online Control in Multi-Robot Motion Planning
+# Model-Based Diffusion Optimal Control in Multi-Robot Motion Planning
 
 ---
 
 ## Introduction
 
-Model-Based Diffusion Online Control in Multi-Robot Motion Planning
+Model-Based Diffusion Optimal Control in Multi-Robot Motion Planning
 
 
 ## Installation
@@ -15,10 +15,9 @@ Model-Based Diffusion Online Control in Multi-Robot Motion Planning
   - ubuntu == 22.04
   - cuda == 11.8.0
   - pytorch == 2.1.0
-  - MacOS mps chips
+  - MacOS mps chips (Not recommend)
 ```
-cd scripts/bash
-./setup.sh
+cd scripts/bash && ./setup.sh
 ```
 ## Planning with MDOC
 
@@ -27,7 +26,7 @@ mmd produces data-driven multi-robot trajectories in a single map or in a collec
 #### Download Trajectory Data and Pre-trained Diffusion Model
 
 ```commandline
-cd scripts/bach
+cd scripts/bash
 ./download.sh
 ```
 #### Inference with MMD

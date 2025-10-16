@@ -274,7 +274,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         )
 
         def _fn(actions: torch.Tensor, constraints):
-            return self._rollout_double_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
+            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
                                                    constraints=constraints)
 
         from mdoc.utils.accelerators import RolloutAccelerator
