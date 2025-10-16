@@ -1,0 +1,42 @@
+{
+  "os":  "macOS-10.16-x86_64-i386-64bit",
+  "python":  "CPython 3.10.16",
+  "startedAt":  "2025-10-16T05:04:55.974404Z",
+  "program":  "-m joblib.externals.loky.backend.popen_loky_posix",
+  "git":  {
+    "remote":  "git@github.com:yoraish/mmd.git",
+    "commit":  "55b364f9d22c35f86c706cb2c9737597a786219f"
+  },
+  "email":  "hectorh@andrew.cmu.edu",
+  "root":  "/Users/zhilinhe/Desktop/hhhhzl/EduGetRicher/CMU/projects/mdoc/scripts/train_diffusion",
+  "host":  "zhilins-MBP",
+  "executable":  "/opt/anaconda3/envs/mdoc/bin/python",
+  "cpu_count":  8,
+  "cpu_count_logical":  8,
+  "disk":  {
+    "/":  {
+      "total":  "494384795648",
+      "used":  "438996885504"
+    },
+    "/System/Volumes/Data":  {
+      "total":  "494384795648",
+      "used":  "438996885504"
+    }
+  },
+  "memory":  {
+    "total":  "17179869184"
+  },
+  "cpu":  {
+    "count":  8,
+    "countLogical":  8
+  },
+  "apple":  {
+    "name":  "Unknown",
+    "ecpuCores":  4,
+    "pcpuCores":  4,
+    "gpuCores":  10,
+    "memoryGb":  16,
+    "swapTotalBytes":  "10737418240",
+    "ramTotalBytes":  "17179869184"
+  }
+}
