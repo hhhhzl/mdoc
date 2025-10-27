@@ -412,7 +412,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='MDOCEnsemble',
+        default='KCBSLower',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -446,7 +446,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmpty2D-RobotPlanarDisk',
+        default='EnvConveyor2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
