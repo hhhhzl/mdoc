@@ -78,11 +78,14 @@ class LowerDynamicAdapter(torch.nn.Module):
             return getattr(self.base, name)
 
     def __call__(self, start_state_pos, goal_state_pos, constraints_l=None, experience=None, *args, **kwargs):
-        dyn_cons = build_dynamic_constraints_from_env(
-            self.env, t0=self.t0, H=self.H, dt=self.dt, map_size=self.map_size,
-            radius_scale=self.radius_scale, hard=self.hard
-        )
-        merged = (constraints_l or []) + dyn_cons
+        if hasattr(self.env, 'get_dynamic_boxes'):
+            dyn_cons = build_dynamic_constraints_from_env(
+                self.env, t0=self.t0, H=self.H, dt=self.dt, map_size=self.map_size,
+                radius_scale=self.radius_scale, hard=self.hard
+            )
+            merged = (constraints_l or []) + dyn_cons
+        else:
+            merged = (constraints_l or [])
 
         # warm-start
         if experience is None and self.last_experience is not None:
