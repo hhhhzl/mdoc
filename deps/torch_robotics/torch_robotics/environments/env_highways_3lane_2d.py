@@ -170,8 +170,7 @@ class EnvHighway3Lane2D(EnvBase):
         centers, sizes = self.get_dynamic_boxes(t, map_size=2)
         c = self.wall_color
         for (cx, cy), (w, h) in zip(centers, sizes):
-            rect = mpatches.Rectangle((cx - w / 2.0, cy - h / 2.0), w, h,
-                                      linewidth=0.0, edgecolor=c, facecolor=c)
+            rect = mpatches.Rectangle((cx - w / 2.0, cy - h / 2.0), w, h, linewidth=0.0, edgecolor=c, facecolor=c)
             ax.add_patch(rect)
         ax.set_title(f"3-Lane + Ramp Merge @ t={t:.1f}s")
         ax.set_xlim(self.limits[0, 0].item(), self.limits[1, 0].item())
