@@ -231,10 +231,10 @@ if __name__ == '__main__':
         tensor_args=get_default_tensor_args(),
     )
     fig, ax = create_fig_and_axes(env.dim)
-    # env.render(ax)
-    # pyplt.show()
-
-    env.render_with_dynamic(t=0.0, ax=ax, show=False, render_sdf=False, render_grad=False)
+    env.render(ax)
     pyplt.show()
-    pyplt.close(fig)
-    gif_path = env.save_animation("highway_3lane_ramp_demo.gif", T=10, fps=8, render_sdf=False, render_grad=False)
+
+    # env.render_with_dynamic(t=0.0, ax=ax, show=False, render_sdf=False, render_grad=False)
+    # pyplt.show()
+    # pyplt.close(fig)
+    # gif_path = env.save_animation("highway_3lane_ramp_demo.gif", T=10, fps=8, render_sdf=False, render_grad=False)
