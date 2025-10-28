@@ -20,17 +20,18 @@ class EnvRandomDense2D(EnvBase):
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
                  # boxes
-                 number_of_box=7,
-                 box_min_size=0.2,
-                 box_max_size=0.2,  # same => squares
-                 box_margin=0.15,
-                 box_gap=0.08,
+                 number_of_box=10,
+                 box_min_size=0.15,
+                 box_max_size=0.15,  # same => squares
+                 box_margin=0.12,
+                 box_gap=0.12,
                  # spheres
-                 number_of_sphere=8,
-                 sphere_r_min=0.08,  # used by random
-                 sphere_r_max=0.08,  # used by random
-                 sphere_margin=0.15,  # used by random
-                 sphere_gap=0.08,  # used by random
+                 number_of_sphere=10,
+                 sphere_r_min=0.075,  # used by random
+                 sphere_r_max=0.075,  # used by random
+                 sphere_margin=0.12,  # used by random
+                 sphere_gap=0.12,  # used by random
+                 avoid_box_gap=0.12,
                  obj_list=None,
                  **kwargs):
 
@@ -70,7 +71,7 @@ class EnvRandomDense2D(EnvBase):
                     rng=np.random.default_rng(),
                     avoid_box_centers=box_centers,
                     avoid_box_sizes=box_sizes,
-                    avoid_box_gap=0.0,  # extra clearance to boxes if desired
+                    avoid_box_gap=avoid_box_gap,  # extra clearance to boxes if desired
                 )
                 spheres = MultiSphereField(
                     np.asarray(s_centers, dtype=float),
@@ -221,63 +222,11 @@ if __name__ == '__main__':
         )
     ]
 
-    env_sparse = EnvRandom2D(
-        precompute_sdf_obj_fixed=True,
-        sdf_cell_size=0.01,
-        tensor_args=get_default_tensor_args(),
-        number_of_sphere=5,
-        sphere_r_min=0.08,  # used by random
-        sphere_r_max=0.08,  # used by random
-        sphere_margin=0.15,  # used by random
-        sphere_gap=0.08,  # used by random
-        number_of_box=5,
-        box_min_size=0.2,
-        box_max_size=0.2,
-        box_gap=0.08,
-        box_margin=0.15,
-    )
-
-    fig, ax = create_fig_and_axes(env_sparse.dim)
-    env_sparse.render(ax)
-    plt.show()
-
-
-    env_dense = EnvRandom2D(
-        precompute_sdf_obj_fixed=True,
-        sdf_cell_size=0.01,
-        tensor_args=get_default_tensor_args(),
-        number_of_sphere=7,
-        sphere_r_min=0.08,  # used by random
-        sphere_r_max=0.08,  # used by random
-        sphere_margin=0.15,  # used by random
-        sphere_gap=0.08,  # used by random
-        number_of_box=8,
-        box_min_size=0.2,
-        box_max_size=0.2,
-        box_gap=0.08,
-        box_margin=0.15,
-    )
-
-    fig, ax = create_fig_and_axes(env_dense.dim)
-    env_dense.render(ax)
-    plt.show()
-
     # Example 2: truly random non-overlapping spheres (no boxes)
-    env_large = EnvRandom2D(
+    env_large = EnvRandomDense2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),
-        number_of_sphere=10,
-        sphere_r_min=0.04,  # used by random
-        sphere_r_max=0.04,
-        sphere_margin=0.15,
-        sphere_gap=0.05,
-
-        number_of_box=10,
-        box_min_size=0.1,
-        box_max_size=0.1,
-        box_margin=0.15,
-        box_gap=0.08,
     )
 
     fig, ax = create_fig_and_axes(env_large.dim)

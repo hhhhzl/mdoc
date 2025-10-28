@@ -13,9 +13,11 @@ from .env_highways_2d import *
 from .env_highways_2d_extra_objects import *
 from .env_empty_nowait_2d import *
 from .env_empty_nowait_2d_extra_objects import *
+# add for mdoc experiment
 from .env_random_2d import *
 from .env_random_dense_2d import *
+from .env_random_large_2d import *
 from .env_u_maze_2d import *
-from .env_highways_merged_2d import *
+from .env_highways_3lane_2d import *
 from .env_narrow_2d import *
 from .env_tennis_2d import *

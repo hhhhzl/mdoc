@@ -6,11 +6,12 @@ from typing import Dict
 from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints
 from mdoc.common.pretty_print import *
 
+
 class TaskEnsemble(Task):
     def __init__(self,
                  tasks: Dict[int, Task],
                  transforms: Dict[int, torch.Tensor],
-                 tensor_args: Dict=None,
+                 tensor_args: Dict = None,
                  **kwargs):
         self.tasks = tasks  # Dict[int, PlanningTask]
         self.transforms = transforms  # Dict[int, torch.Tensor [dx dy] in 2D.]
@@ -189,8 +190,10 @@ class PlanningTaskEnsemble(TaskEnsemble):
 
         results['trajs_final_coll_idxs'] = coll_ids.long()
         results['trajs_final_free_idxs'] = free_ids.long()
-        results['trajs_final_coll'] = trajs_final[results['trajs_final_coll_idxs'], :, ...] if len(coll_ids) > 0 else torch.tensor([], **self.tensor_args)
-        results['trajs_final_free'] = trajs_final[results['trajs_final_free_idxs'], :, ...] if len(free_ids) > 0 else torch.tensor([], **self.tensor_args)
+        results['trajs_final_coll'] = trajs_final[results['trajs_final_coll_idxs'], :, ...] if len(
+            coll_ids) > 0 else torch.tensor([], **self.tensor_args)
+        results['trajs_final_free'] = trajs_final[results['trajs_final_free_idxs'], :, ...] if len(
+            free_ids) > 0 else torch.tensor([], **self.tensor_args)
         results['success_free_trajs'] = 1 if len(free_ids) > 0 else 0
         results['fraction_free_trajs'] = len(free_ids) / results['trajs_iters'].shape[1]
         results['collision_intensity_trajs'] = 1 - results['fraction_free_trajs']
@@ -211,13 +214,15 @@ class PlanningTaskEnsemble(TaskEnsemble):
             #                  for task_id in results_ensemble.keys()],
             #                 dim=-1), dim=-1)
 
-            results['cost_all_trajs_final_free'] = results['cost_smoothness_trajs_final_free'] + results['cost_path_length_trajs_final_free']
+            results['cost_all_trajs_final_free'] = results['cost_smoothness_trajs_final_free'] + results[
+                'cost_path_length_trajs_final_free']
 
             # results['variance_waypoint_trajs_final_free'] = torch.sum(
             #     torch.cat([results_ensemble[task_id]['variance_waypoint_trajs_final_free'].unsqueeze(0)
             #                  for task_id in results_ensemble.keys()],
             #                 dim=-1), dim=-1)
-            results['variance_waypoint_trajs_final_free'] = compute_variance_waypoints(results['trajs_final_free'], self.robot)
+            results['variance_waypoint_trajs_final_free'] = compute_variance_waypoints(results['trajs_final_free'],
+                                                                                       self.robot)
 
             idx_best_traj_among_free_trajs = torch.argmin(results['cost_all_trajs_final_free'], dim=-1)
             # Index of best free trajectory among all trajectories.
@@ -265,7 +270,8 @@ class PlanningTaskEnsemble(TaskEnsemble):
                 q_task = q[mask]
                 q_task = self.inverse_transform_q(task_id, q_task)
                 mask = mask.view(-1)
-                collisions[mask] = self.tasks[task_id]._compute_collision_or_cost(q_task, field_type=field_type, **kwargs)
+                collisions[mask] = self.tasks[task_id]._compute_collision_or_cost(q_task, field_type=field_type,
+                                                                                  **kwargs)
 
         return collisions.view(q_original_shape[:-1])
 
@@ -276,7 +282,8 @@ class PlanningTaskEnsemble(TaskEnsemble):
         # TODO(yorai): get_trajs_collision_and_free returns all free. This is for visualization, but still needs to be
         #  fixed.
         if return_indices:
-            return None, torch.tensor([]), trajs, torch.tensor([i for i in range(trajs.shape[0])]), torch.tensor([False for i in range(trajs.shape[1])])
+            return None, torch.tensor([]), trajs, torch.tensor([i for i in range(trajs.shape[0])]), torch.tensor(
+                [False for i in range(trajs.shape[1])])
         return None, trajs
 
         assert trajs.ndim == 3 or trajs.ndim == 4
@@ -297,8 +304,8 @@ class PlanningTaskEnsemble(TaskEnsemble):
             ###############################################################################################################
             # compute collisions on a finer interpolated trajectory
             trajs_interpolated = interpolate_traj_via_points(
-                                        trajs_new[:, task_id * params.horizon:(task_id + 1) * params.horizon, ...],
-                                        num_interpolation=num_interpolation)
+                trajs_new[:, task_id * params.horizon:(task_id + 1) * params.horizon, ...],
+                num_interpolation=num_interpolation)
             trajs_interpolated_all.append(trajs_interpolated)
             # TODO(yoraish): this is a hack to accomodate the planar disk robot which only has one point of collision
             #  but a volume nonetheless. If robot has a radius, then use it as margin.
