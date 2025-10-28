@@ -1,6 +1,0 @@
-env_id: EnvRandomLarge2D
-num_trajectories: 20
-num_trajectories_generated: 20
-num_trajectories_generated_coll: 0
-num_trajectories_generated_free: 20
-robot_id: RobotPlanarDisk
