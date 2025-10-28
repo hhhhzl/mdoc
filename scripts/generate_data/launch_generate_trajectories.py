@@ -12,7 +12,7 @@ from experiment_launcher.utils import is_local
 # num_contexts: the number of start/goal pairs.
 # num_trajectories_per_context: the number of trajectories per start/goal pair.
 
-env_id: str = 'EnvRandom2D'
+env_id: str = 'EnvRandomDense2D'
 robot_id: str = 'RobotPlanarDisk'
 num_contexts = 500
 num_trajectories_per_context = 20
@@ -70,15 +70,11 @@ launcher = Launcher(
 launcher.add_experiment(
     env_id__=env_id,
     robot_id__=robot_id,
-
     num_trajectories=num_trajectories_per_context,
-
     threshold_start_goal_pos=threshold_start_goal_pos,
     obstacle_cutoff_margin=obstacle_cutoff_margin,
     is_start_goal_near_limits=is_start_goal_near_limits,
-
     device='cuda' if USE_CUDA else 'cpu',
-
     debug=False
 )
 

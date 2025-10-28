@@ -29,6 +29,11 @@ class StaticCircle:
     center: np.ndarray  # (2,)
     radius: float
 
+@dataclass
+class StaticBox:
+    center: np.ndarray  # (2,)
+    size: np.ndarray    # (2,) width & height
+
 
 @dataclass
 class MovingCircle:
@@ -89,17 +94,29 @@ class Tree:
         return int(np.argmin(d2))
 
 
+# @dataclass
+# class RRTParams:
+#     dt: float = 0.1
+#     v_max: float = 0.04
+#     K_min: int = 6
+#     K_max: int = 16
+#     n_iter: int = 7000
+#     goal_radius: float = 0.02
+#     prob_goal_bias: float = 0.2
+#     dt_check: float = 0.03
+#     t_max: float = 60.0
+
 @dataclass
 class RRTParams:
-    dt: float = 0.1
-    v_max: float = 0.04
-    K_min: int = 6
-    K_max: int = 16
-    n_iter: int = 7000
+    dt: float = 0.12
+    v_max: float = 0.06
+    K_min: int = 4
+    K_max: int = 12
+    n_iter: int = 20000
     goal_radius: float = 0.02
-    prob_goal_bias: float = 0.2
-    dt_check: float = 0.03
-    t_max: float = 60.0
+    prob_goal_bias: float = 0.35
+    dt_check: float = 0.05
+    t_max: float = 100
 
 
 # --------------------------
@@ -166,13 +183,22 @@ def is_valid_segment_single(
                 world.bounds[1][0] <= p[1] <= world.bounds[1][1]):
             return False
         for obs in world.static_obstacles:
-            if np.linalg.norm(p - obs.center) <= (obs.radius + world.robot_radius): return False
+            if isinstance(obs, StaticCircle):
+                if np.linalg.norm(p - obs.center) <= (obs.radius + world.robot_radius):
+                    return False
+            elif isinstance(obs, StaticBox):
+                dx = abs(p[0] - obs.center[0])
+                dy = abs(p[1] - obs.center[1])
+                if dx <= (obs.size[0] / 2 + world.robot_radius) and dy <= (obs.size[1] / 2 + world.robot_radius):
+                    return False
         for mobs in world.moving_obstacles:
             c = mobs.center_at(tau)
-            if np.linalg.norm(p - c) <= (mobs.radius + world.robot_radius): return False
+            if np.linalg.norm(p - c) <= (mobs.radius + world.robot_radius):
+                return False
         for pob in path_obstacles:
             c = pob.center_at(tau)
-            if np.linalg.norm(p - c) <= (pob.radius + world.robot_radius): return False
+            if np.linalg.norm(p - c) <= (pob.radius + world.robot_radius):
+                return False
     return True
 
 
@@ -215,8 +241,14 @@ def is_valid_segment_multi(
                     world.bounds[1][0] <= p[1] <= world.bounds[1][1]):
                 return False
             for obs in world.static_obstacles:
-                if np.linalg.norm(p - obs.center) <= (obs.radius + world.robot_radius):
-                    return False
+                if isinstance(obs, StaticCircle):
+                    if np.linalg.norm(p - obs.center) <= (obs.radius + world.robot_radius):
+                        return False
+                elif isinstance(obs, StaticBox):
+                    dx = abs(p[0] - obs.center[0])
+                    dy = abs(p[1] - obs.center[1])
+                    if dx <= (obs.size[0] / 2 + world.robot_radius) and dy <= (obs.size[1] / 2 + world.robot_radius):
+                        return False
             for mobs in world.moving_obstacles:
                 c = mobs.center_at(tau)
                 if np.linalg.norm(p - c) <= (mobs.radius + world.robot_radius):
@@ -661,15 +693,6 @@ def build_agents_three() -> List[AgentSpec]:
 
 
 # --------------------------
-# Run planner
-# --------------------------
-# world = build_world()
-# agents = build_agents_three()
-# params = RRTParams(n_iter=7000, t_max=60.0, dt_check=0.03, goal_radius=0.7, prob_goal_bias=0.2)
-# plans = kcbs_with_merge(agents, world, params, merge_threshold=2, max_nodes=100, seed=5)
-
-
-# --------------------------
 # Visualization: static and animated
 # --------------------------
 def draw_world(ax, world: World):
@@ -736,34 +759,3 @@ def animate_solution(
     # Use PillowWriter for wide compatibility
     ani.save(out_path, writer=animation.PillowWriter(fps=int(1.0 / dt)))
     plt.close(fig)
-
-# Static plot
-# fig, ax = plt.subplots(figsize=(6.4, 6.4))
-# ax.set_title("KCBS with Time-Window Constraints + Merge (static solution)")
-# draw_world(ax, world)
-# if plans is not None:
-#     # plot starts/goals
-#     for i, ag in enumerate(agents):
-#         ax.plot(ag.start[0], ag.start[1], marker='o', markersize=6)
-#         ax.plot(ag.goal[0], ag.goal[1], marker='*', markersize=10)
-#     # plot each entity plan
-#     for ent_id, EP in plans.items():
-#         if EP.pos is None: continue
-#         if EP.is_group:
-#             # draw each member path
-#             for r in range(EP.pos.shape[1]):
-#                 ax.plot(EP.pos[:, r, 0], EP.pos[:, r, 1], linewidth=2.5)
-#         else:
-#             ax.plot(EP.pos[:, 0], EP.pos[:, 1], linewidth=2.5)
-# else:
-#     ax.text(0.5, 0.95, "No joint solution", transform=ax.transAxes, ha="center")
-# plt.tight_layout()
-# static_path = "kcbs_merge_static.png"
-# plt.savefig(static_path)
-
-
-# if plans is not None:
-#     gif_path = "kcbs_solution.gif"
-#     animate_solution(world, agents, plans, gif_path)
-# else:
-#     gif_path = None

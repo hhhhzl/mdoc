@@ -14,26 +14,20 @@ class EnvHighway3Lane2D(EnvBase):
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.01,
-                 lane_sep=0.06,
-                 top_bottom_thickness=1.4,  # 1.2 & 1.4
-                 ramp_start=(0.85, -0.85),
-                 ramp_end=(0.10, -0.10),
-                 ramp_width=0.22,
-                 ramp_steps=28,
-                 dyn_counts=(3, 3, 3),
+                 lane_sep=0.18,
+                 top_bottom_thickness=1.5,  # 1.2 & 1.4
+                 dyn_counts=(1, 2, 2),
                  dyn_speeds=(0.30, 0.35, 0.40),
                  dyn_spawn_x=(-0.9, -0.9, -0.9),
-                 car_len=0.06,
-                 car_wid=0.04,
+                 car_len=0.10,
+                 car_wid=0.10,
+                 map_size=2,
+                 merge_lane_weight=0.15,
                  wall_color="#ead4a8",
                  **kwargs):
         self.tensor_args = tensor_args if tensor_args is not None else get_default_tensor_args()
         self.lane_sep = lane_sep
         self.top_bottom_thickness = top_bottom_thickness
-        self.ramp_start = ramp_start
-        self.ramp_end = ramp_end
-        self.ramp_width = ramp_width
-        self.ramp_steps = ramp_steps
         self.dyn_counts = dyn_counts
         self.dyn_speeds = dyn_speeds
         self.dyn_spawn_x = dyn_spawn_x
@@ -41,16 +35,26 @@ class EnvHighway3Lane2D(EnvBase):
         self.car_wid = float(car_wid)
         self.wall_color = wall_color
 
-        centers, sizes = self._build_static_boxes(self.top_bottom_thickness,
-                                                  self.ramp_start, self.ramp_end,
-                                                  self.ramp_width, self.ramp_steps)
-        box_field = MultiBoxField(np.asarray(centers, dtype=float),
-                                  np.asarray(sizes, dtype=float),
-                                  tensor_args=self.tensor_args)
+        self.margin_m = getattr(self, "margin_m", 0.3)
+        self.seed = getattr(self, "seed", 0)
+        self.rng = np.random.default_rng(self.seed)
+        self._lane_x0 = {0: None, 1: None, 2: None}
+        self._lane_phase = {0: 0.0, 1: 0.0, 2: 0.0}
+
+        centers, sizes = self._build_static_boxes(
+            self.top_bottom_thickness,
+            map_size,
+            merge_lane_weight
+        )
+        box_field = MultiBoxField(
+            np.asarray(centers, dtype=float),
+            np.asarray(sizes, dtype=float),
+            tensor_args=self.tensor_args
+        )
 
         super().__init__(
             name=name,
-            limits=torch.tensor([[-1, -1], [1, 1]], **self.tensor_args),
+            limits=torch.tensor([[-map_size, -map_size], [map_size, map_size]], **self.tensor_args),
             obj_fixed_list=[ObjectField([box_field], 'highway_merge_3lane_ramp_2d')],
             precompute_sdf_obj_fixed=precompute_sdf_obj_fixed,
             sdf_cell_size=sdf_cell_size,
@@ -59,43 +63,83 @@ class EnvHighway3Lane2D(EnvBase):
         )
 
     @staticmethod
-    def _build_static_boxes(top_bottom_thickness, ramp_start, ramp_end, ramp_width, ramp_steps):
+    def _build_static_boxes(top_bottom_thickness, map_size, merge_lane_weight):
         centers, sizes = [], []
-        centers.append((0.0, 0.8))
-        sizes.append((2.0, top_bottom_thickness))
-        centers.append((0.0, -0.8))
-        sizes.append((2.0, top_bottom_thickness))
-        # x0, y0 = float(ramp_start[0]), float(ramp_start[1])
-        # x1, y1 = float(ramp_end[0]), float(ramp_end[1])
-        # dx = (x1 - x0) / ramp_steps
-        # dy = (y1 - y0) / ramp_steps
-        # step = max(abs(dx), abs(dy))
-        # half = ramp_width * 0.5
-        # wx = step + 0.02
-        # wy = 0.02
-        # for i in range(ramp_steps):
-        #     cx = x0 + dx * i
-        #     cy = y0 + dy * i
-        #     centers.append((cx + half, cy))
-        #     sizes.append((wx, wy))
-        #     centers.append((cx - half, cy))
-        #     sizes.append((wx, wy))
+        y = (map_size - top_bottom_thickness) + top_bottom_thickness / 2
+        centers.append((0.0,  y))
+        sizes.append((2 * map_size + 0.3, top_bottom_thickness))
+        centers.append((0.0, -y))
+        sizes.append((2 * map_size + 0.3, top_bottom_thickness))
+
+        # add merge lines
+        # upper
+        length = map_size * 2 / 5
+        y = (map_size - top_bottom_thickness) - (merge_lane_weight / 2)
+        centers.append((0.0, y))
+        sizes.append((length, merge_lane_weight))
+
+        centers.append((-(map_size - length / 2), y))
+        sizes.append((length, merge_lane_weight))
+
+        centers.append((map_size - length / 2, y))
+        sizes.append((length, merge_lane_weight))
+
+        # down
+        y = - ((map_size - top_bottom_thickness) - (merge_lane_weight / 2))
+        centers.append((0.0, y))
+        sizes.append((length, merge_lane_weight))
+
+        centers.append((-(map_size - length / 2), y))
+        sizes.append((length, merge_lane_weight))
+
+        centers.append((map_size - length / 2, y))
+        sizes.append((length, merge_lane_weight))
+
         return centers, sizes
 
-    def get_dynamic_boxes(self, t: float):
+    def _sample_lane_positions(self, n, C, m, rng):
+        assert n >= 0
+        if n == 0:
+            return np.zeros((0,), dtype=float)
+        assert C / n >= m, f"Infeasible: circumference {C:.3f} < n*m {n * m:.3f}"
+
+        base = np.linspace(0.0, C, num=n, endpoint=False)  # 0, C/n, 2C/n, ...
+        jitter_max = max(0.0, 0.5 * (C / n - m))
+        jitter = rng.uniform(-jitter_max, +jitter_max, size=n)
+        x0 = (base + jitter) % C
+        rng.shuffle(x0)
+        return x0
+
+    def reset_dynamic_boxes(self, map_size):
+        C = float(map_size) * 1.8
+        for li in range(3):
+            n = int(self.dyn_counts[li])
+            self._lane_x0[li] = self._sample_lane_positions(n, C, self.margin_m, self.rng)
+            self._lane_phase[li] = self.rng.uniform(0.0, C)
+
+    def get_dynamic_boxes(self, t: float, map_size):
         lane_y = np.array([-self.lane_sep, 0.0, +self.lane_sep], dtype=float)
         centers, sizes = [], []
         length = 1.8
-        x_min = -0.9
+        x_min = -map_size + 0.3
+        C = map_size * length
+
+        if any(self._lane_x0[li] is None for li in range(3)):
+            self.reset_dynamic_boxes(map_size)
+
         for li in range(3):
             n = int(self.dyn_counts[li])
             v = float(self.dyn_speeds[li])
             y = float(lane_y[li])
+            x0_lane = self._lane_x0[li]
+            phase_lane = self._lane_phase[li]
+
             for k in range(n):
-                phase0 = k / max(1, n)
-                x = x_min + ((phase0 + (v * t) / length) % 1.0) * length
+                x0 = x0_lane[k]
+                x = x_min + ((x0 + phase_lane + (v * t)) % C)
                 centers.append([x, y])
                 sizes.append([self.car_len, self.car_wid])
+
         return np.asarray(centers, dtype=float), np.asarray(sizes, dtype=float)
 
     def _render_static_boxes(self, ax):
@@ -123,7 +167,7 @@ class EnvHighway3Lane2D(EnvBase):
             if fig is None:
                 fig = plt.gcf()
             self.render_grad_sdf(ax, fig)
-        centers, sizes = self.get_dynamic_boxes(t)
+        centers, sizes = self.get_dynamic_boxes(t, map_size=2)
         c = self.wall_color
         for (cx, cy), (w, h) in zip(centers, sizes):
             rect = mpatches.Rectangle((cx - w / 2.0, cy - h / 2.0), w, h,
@@ -156,7 +200,7 @@ class EnvHighway3Lane2D(EnvBase):
             self._render_static_boxes(ax)
             if render_grad:
                 self.render_grad_sdf(ax, fig)
-            centers, sizes = self.get_dynamic_boxes(t)
+            centers, sizes = self.get_dynamic_boxes(t, map_size=2)
             artists = []
             c = self.wall_color
             for (cx, cy), (w, h) in zip(centers, sizes):
@@ -182,9 +226,16 @@ class EnvHighway3Lane2D(EnvBase):
 
 
 if __name__ == '__main__':
-    env = EnvHighway3Lane2D(precompute_sdf_obj_fixed=True, sdf_cell_size=0.02)
+    env = EnvHighway3Lane2D(
+        precompute_sdf_obj_fixed=True,
+        sdf_cell_size=0.02,
+        tensor_args=get_default_tensor_args(),
+    )
     fig, ax = create_fig_and_axes(env.dim)
+    # env.render(ax)
+    # pyplt.show()
+
     env.render_with_dynamic(t=0.0, ax=ax, show=False, render_sdf=False, render_grad=False)
     pyplt.show()
     pyplt.close(fig)
-    gif_path = env.save_animation("highway_3lane_ramp_demo.gif", T=5.0, fps=8, render_sdf=False, render_grad=False)
+    gif_path = env.save_animation("highway_3lane_ramp_demo.gif", T=10, fps=8, render_sdf=False, render_grad=False)

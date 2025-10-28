@@ -46,6 +46,7 @@ def sample_non_overlapping_boxes_2d(
         margin: float = 0.15,
         gap: float = 0.02,
         max_global_attempts: int = 50_000,
+        map_size=1,  # assume it is a square
         rng: np.random.Generator | None = None,
 ):
     """
@@ -65,8 +66,8 @@ def sample_non_overlapping_boxes_2d(
     sizes_sorted = sizes[order]
 
     # Workspace bounds
-    lo = -1.0 + margin
-    hi = 1.0 - margin
+    lo = -map_size + margin
+    hi = map_size - margin
 
     centers_sorted = np.zeros((n_boxes, 2), dtype=float)
     placed = 0
@@ -120,8 +121,9 @@ def sample_non_overlapping_spheres_2d(
         rng: np.random.Generator | None = None,
         # NEW: avoid existing boxes
         avoid_box_centers: np.ndarray | None = None,
-        avoid_box_sizes:   np.ndarray | None = None,
+        avoid_box_sizes: np.ndarray | None = None,
         avoid_box_gap: float = 0.0,
+        map_size = 1,
 ):
     """
     Random non-overlapping circles in [-1,1]^2 w/ margin and *no overlap with boxes*.
@@ -134,8 +136,8 @@ def sample_non_overlapping_spheres_2d(
     order = np.argsort(-radii)  # place larger first
     radii_sorted = radii[order]
 
-    lo = -1.0 + margin
-    hi =  1.0 - margin
+    lo = -map_size + margin
+    hi = map_size - margin
 
     centers_sorted = np.zeros((n_spheres, 2), dtype=float)
     placed = 0
@@ -146,7 +148,7 @@ def sample_non_overlapping_spheres_2d(
             return True
         cj = centers_sorted[:k]
         rj = radii_sorted[:k]
-        d2 = np.sum((cj - cent[None, :])**2, axis=1)
+        d2 = np.sum((cj - cent[None, :]) ** 2, axis=1)
         req = (rj + radii_sorted[k] + gap)
         if np.any(d2 < (req * req)):
             return False

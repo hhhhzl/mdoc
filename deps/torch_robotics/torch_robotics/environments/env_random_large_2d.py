@@ -12,27 +12,27 @@ from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 from mdoc.config.mmd_params import MMDParams as params
 
-class EnvRandom2D(EnvBase):
+class EnvRandomLarge2D(EnvBase):
 
     def __init__(self,
-                 name='EnvRandom2D',
+                 name='EnvRandomLarge2D',
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
                  # boxes
-                 number_of_box=5,
+                 number_of_box=10,
                  box_min_size=0.15,
                  box_max_size=0.15,  # same => squares
-                 box_margin=0.12,
-                 box_gap=0.12,
+                 box_margin=0.3,
+                 box_gap=0.24,
                  # spheres
-                 number_of_sphere=5,
+                 number_of_sphere=10,
                  sphere_r_min=0.075,  # used by random
                  sphere_r_max=0.075,  # used by random
-                 sphere_margin=0.12,  # used by random
-                 sphere_gap=0.12,  # used by random
+                 sphere_margin=0.3,  # used by random
+                 sphere_gap=0.24,  # used by random
                  obj_list=None,
-                 avoid_box_gap=0.12,
+                 avoid_box_gap=0.24,
                  **kwargs):
 
         # Safe tensor_args
@@ -52,6 +52,7 @@ class EnvRandom2D(EnvBase):
                     margin=box_margin,
                     gap=box_gap,
                     rng=np.random.default_rng(),
+                    map_size=2,
                 )
                 box_field = MultiBoxField(
                     np.asarray(box_centers, dtype=float),
@@ -72,6 +73,7 @@ class EnvRandom2D(EnvBase):
                     avoid_box_centers=box_centers,
                     avoid_box_sizes=box_sizes,
                     avoid_box_gap=avoid_box_gap,  # extra clearance to boxes if desired
+                    map_size=2,
                 )
                 spheres = MultiSphereField(
                     np.asarray(s_centers, dtype=float),
@@ -82,7 +84,7 @@ class EnvRandom2D(EnvBase):
 
         super().__init__(
             name=name,
-            limits=torch.tensor([[-1, -1], [1, 1]], **tensor_args),
+            limits=torch.tensor([[-2, -2], [2, 2]], **tensor_args),
             obj_fixed_list=[ObjectField(objs if obj_list is None else obj_list, 'random2d')],
             precompute_sdf_obj_fixed=precompute_sdf_obj_fixed,
             sdf_cell_size=sdf_cell_size,
@@ -92,11 +94,11 @@ class EnvRandom2D(EnvBase):
 
     def get_rrt_connect_params(self, robot=None):
         params = dict(
-            n_iters=10000,
-            step_size=0.01,
-            n_radius=0.05,
+            n_iters=20000,
+            step_size=0.005,
+            n_radius=0.04,
             n_pre_samples=50000,
-            max_time=50
+            max_time=150
         )
 
         from torch_robotics.robots import RobotPlanarDisk
@@ -222,7 +224,7 @@ if __name__ == '__main__':
         )
     ]
 
-    env_sparse = EnvRandom2D(
+    env_sparse = EnvRandomLarge2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),

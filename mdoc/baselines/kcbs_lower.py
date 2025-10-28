@@ -4,9 +4,10 @@ from typing import List, Optional, Dict
 import numpy as np
 import torch
 import itertools
+import math
 from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 # --------------------------------------------------------------
-from mdoc.baselines.kcbs import World, RRTParams, rrt_plan_single
+from mdoc.baselines.kcbs import World, RRTParams, rrt_plan_single, StaticCircle, StaticBox
 from mdoc.common.experiences import PathBatchExperience
 from mdoc.common.constraints import MultiPointConstraint
 from mdoc.planners.common import PlannerOutput
@@ -119,12 +120,36 @@ class KCBSLower:
         x_max, y_max = float(limits[1, 0]), float(limits[1, 1])
         robot_radius = float(self.robot.radius)
 
-        return World(
+        static_obstacles = []
+        env = getattr(self.task, "env", None)
+
+        if env is not None and hasattr(env, "obj_fixed_list"):
+            for obj_field in env.obj_fixed_list:
+                for primitive in getattr(obj_field, "fields", []):
+                    # --- spheres： ---
+                    if hasattr(primitive, "centers") and hasattr(primitive, "radii"):
+                        centers = primitive.centers.detach().cpu().numpy()
+                        radii = primitive.radii.detach().cpu().numpy()
+                        for c, r in zip(centers, radii):
+                            static_obstacles.append(StaticCircle(center=np.array(c[:2], dtype=float), radius=float(r)))
+
+                    # --- boxes：---
+                    elif hasattr(primitive, "centers") and hasattr(primitive, "sizes"):
+                        centers = primitive.centers.detach().cpu().numpy()  # (n,2)
+                        sizes = primitive.sizes.detach().cpu().numpy()  # (n,2)
+                        for c, s in zip(centers, sizes):
+                            static_obstacles.append(
+                                StaticBox(center=np.array(c[:2]), size=np.array(s[:2]))
+                            )
+
+        world = World(
             bounds=((x_min, x_max), (y_min, y_max)),
-            static_obstacles=[],
+            static_obstacles=static_obstacles,
             moving_obstacles=[],
             robot_radius=robot_radius
         )
+        print(f"[KCBS] Loaded {len(static_obstacles)} static obstacles")
+        return world
 
     def _constraints_to_path_obstacles(
             self, constraints_l: Optional[List]
@@ -235,5 +260,5 @@ class KCBSLower:
         out.variance_waypoint_trajs_final_free = None
         out.t_total = float(ts[-1])
         out.constraints_l = constraints_l
-        out.trajs_final = smooth_trajs(out.trajs_final)
+        # out.trajs_final = smooth_trajs(out.trajs_final)
         return out
