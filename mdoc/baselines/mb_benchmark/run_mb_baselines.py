@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
 import argparse
@@ -16,7 +17,7 @@ from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.torch_utils.seed import fix_random_seed
 from torch_robotics.torch_utils.torch_timer import TimerCUDA
 from torch_robotics.torch_utils.torch_utils import get_torch_device
-from mdoc.baselines.mb_benchmark.visualizer import plot_overlay, plot_paths, plot_diffusion
+from mdoc.baselines.mb_benchmark.visualizer import plot_overlay, plot_paths, plot_diffusion, print_overlay
 
 
 # ---------------------- collision sdf + cbf projection helpers ----------------------
@@ -80,7 +81,7 @@ def parse_args():
     parser.add_argument(
         '--planner',
         nargs='+',
-        default=['cem', 'mppi', 'mdoc', "rrt*"],
+        default=['cem', 'mppi', "rrt*", 'mdoc'],
         choices=['rrt*', 'mdoc', 'mppi', 'cem'],
         help='List of single-agent planners'
     )
@@ -101,6 +102,13 @@ def parse_args():
         help='start && goal type'
     )
 
+    parser.add_argument(
+        '--plot',
+        type=bool,
+        default=False,
+        help='whether to plot'
+    )
+
     return parser.parse_args()
 
 
@@ -112,6 +120,7 @@ if __name__ == '__main__':
     H = 128  # horizon
     dt = 0.04
     opt_iters_outer = 1
+    plot = args.plot
 
     # --------------------------- build envs ------------------------------- #
     envs = {
@@ -121,8 +130,8 @@ if __name__ == '__main__':
             tensor_args=tensor_args
         ),
         "Narrow": EnvSymBottleneck2D(
-            corridor_width=0.25,
-            wall_thickness=0.28,
+            corridor_width=0.42,
+            wall_thickness=0.02,
             tensor_args=tensor_args,
             precompute_sdf_obj_fixed=True,
             sdf_cell_size=0.01,
@@ -152,7 +161,7 @@ if __name__ == '__main__':
             wall_thickness=0.02 if args.type == "flat" else 0.28,
             tensor_args=tensor_args,
             chair_to_center=0.4,
-            chair_length=0.4,
+            chair_length=0.3,
             chair_width=0.1,
         )
     }
@@ -200,13 +209,13 @@ if __name__ == '__main__':
                 tensor_args=tensor_args,
             )
             cem_params = dict(
-                num_ctrl_samples=512,
+                num_ctrl_samples=2048,
                 rollout_steps=H,
                 opt_iters=4,
                 elite_frac=0.25,
-                min_elites=128,
-                step_size=0.35,
-                control_std=[0.12, 0.12],
+                min_elites=512,
+                step_size=0.8,
+                control_std=[0.05, 0.05],
                 cov_prior_type='const_ctrl',
                 tensor_args=tensor_args,
             )
@@ -230,12 +239,12 @@ if __name__ == '__main__':
                 tensor_args=tensor_args,
             )
             mppi_params = dict(
-                num_ctrl_samples=512,
+                num_ctrl_samples=2048,
                 rollout_steps=H,
-                control_std=[0.12, 0.12],
+                control_std=[0.04, 0.04],
                 temp=42,
-                opt_iters=2,
-                step_size=0.6,
+                opt_iters=4,
+                step_size=0.8,
                 cov_prior_type='const_ctrl',
                 tensor_args=tensor_args,
             )
@@ -248,7 +257,7 @@ if __name__ == '__main__':
                 env_model=env,
                 start_state_pos=start_state,  # (2,)
                 goal_state_pos=goal_state,  # (2,)
-                rollout_steps=H,
+                rollout_steps=64,
                 n_diffusion_steps=100 if args.type == "flat" else 200,
                 n_samples=128,
                 temp_sample=0.001,
@@ -307,21 +316,30 @@ if __name__ == '__main__':
 
     import matplotlib.pyplot as plt
 
-    colors['mdoc'] = plt.cm.tab20(18)
-    # colors['mppi'] = plt.cm.tab20(6)
-    # colors['cem'] = plt.cm.tab20(4)
-    colors['mppi'] = (0.88, 0.40, 0.31)
-    colors['cem'] = (0.36, 0.72, 0.64)
-    colors['rrt*'] = plt.cm.tab20(15)
+    colors = {
+        'mdoc': (0.1216, 0.4667, 0.7059),  # #1f77b4
+        'mppi': (1.0000, 0.4980, 0.0549),  # #ff7f0e
+        'cem': (0.2078, 0.7176, 0.4745),  # #35B779
+        'rrt*': (0.8392, 0.1529, 0.1569),  # #d95f02
+    }
+
+    # colors['mdoc'] = plt.cm.tab20(18)
+    # # colors['mppi'] = plt.cm.tab20(6)
+    # # colors['cem'] = plt.cm.tab20(4)
+    # colors['mppi'] = (0.88, 0.40, 0.31)
+    # colors['cem'] = (0.36, 0.72, 0.64)
+    # colors['rrt*'] = plt.cm.tab20(15)
 
     samples = {}
+    pass_stats = {}
     paths = {}
     with TimerCUDA() as t:
         for method in planners.keys():
             planner = planners[method]
             fix_random_seed(seed)
+            time = t.elapsed
             if method in ['mdoc', 'mppi', 'cem']:
-                vel_iters = torch.empty((opt_iters_outer, 1, H, planner.control_dim), **tensor_args)
+                vel_iters = torch.empty((opt_iters_outer, 1, H if method in ['mppi', 'cem'] else 64, planner.control_dim), **tensor_args)
             for i in range(opt_iters_outer):
                 observation['cost'] = [] if method == 'mdoc' else cost_composite  # uses planner.opt_iters
                 if method in ['mppi', 'cem']:
@@ -345,16 +363,17 @@ if __name__ == '__main__':
                     picks = [0, len(trace) // 2, len(trace) - 1]
                     triplet = [trace[k] for k in picks]
                     triplet_reps = [reprs[k] for k in picks]
-                    plot_diffusion(
-                        env,
-                        trace,
-                        radius=robot.radius,
-                        color=colors[method],
-                        start=start_state.cpu().numpy().tolist(),
-                        goal=goal_state.cpu().numpy().tolist(),
-                        xylim=None,
-                        save_path=f'results/mb/{args.e.lower()}_{args.type}_diffusion'
-                    )
+                    if plot:
+                        plot_diffusion(
+                            env,
+                            trace,
+                            radius=robot.radius,
+                            color=colors[method],
+                            start=start_state.cpu().numpy().tolist(),
+                            goal=goal_state.cpu().numpy().tolist(),
+                            xylim=None,
+                            save_path=f'results/mb/{args.e.lower()}_{args.type}_diffusion'
+                        )
                 elif method == "rrt*":
                     path = planner.optimize(opt_iters=100, debug=True)
                     if (path is None) or (len(path) == 0):
@@ -370,43 +389,101 @@ if __name__ == '__main__':
                         pos_trajs_batch = pos_traj.unsqueeze(0).unsqueeze(0)
                         paths[method] = pos_trajs_batch[-1]
 
-                print(f'Optimization time for {method}: {t.elapsed:.3f} sec')
+                    rrt_nodes = []
+                    rrt_pass_total = 0.0
+                    rrt_total_samples = 0
+                    nodes_tree_1 = getattr(planner, "nodes_tree_1_torch", None)
+                    nodes_tree_2 = getattr(planner, "nodes_tree_2_torch", None)
+                    for node_tensor in (nodes_tree_1, nodes_tree_2):
+                        if node_tensor is None:
+                            continue
+                        if node_tensor.dim() == 1:
+                            node_tensor = node_tensor.unsqueeze(0)
+                        node_pos = node_tensor[:, :2]
+                        rrt_nodes.append(node_pos)
+                        rrt_total_samples += node_pos.shape[0]
+                        rrt_pass_total += float((node_pos[:, 0] > 0.0).sum().item())
+                    if rrt_nodes:
+                        all_rrt_nodes = torch.cat(rrt_nodes, dim=0)
+                        samples[method] = all_rrt_nodes.detach().to("cpu", dtype=torch.float32).numpy()
+                        if rrt_total_samples > 0:
+                            pass_stats[method.lower()] = {
+                                "pass_total": float(rrt_pass_total / rrt_total_samples * 100.0),
+                                "n_total": rrt_total_samples,
+                                "n_free": rrt_total_samples,
+                                "pass_given_free": float((all_rrt_nodes[:, 0] > 0.0).float().mean().item() * 100.0),
+                            }
+
+                print(f'Optimization time for {method}: {t.elapsed - time:.3f} sec')
 
                 if method in ['mdoc', 'mppi', 'cem']:
                     ctrl_samples, state_trajs, weights = planner.get_recent_samples()
-                    endpoints = state_trajs[:, -1, :2].cpu().numpy()
+                    collision_mask = task.compute_collision(state_trajs, margin=robot.radius)
+                    if collision_mask.ndim >= 2:
+                        collision_mask_flat = collision_mask.reshape(collision_mask.shape[0], -1).any(dim=1)
+                    else:
+                        collision_mask_flat = collision_mask.bool()
+                    valid_mask = torch.logical_not(collision_mask_flat)
+                    n_total = int(state_trajs.shape[0])
+                    n_free = int(valid_mask.sum().item())
+                    pass_mask = state_trajs[:, -1, 0] > 0.0
+                    pass_and_free = torch.logical_and(valid_mask, pass_mask).sum().item()
+                    if n_total > 0:
+                        pass_rate_total = float(pass_and_free / n_total * 100.0)
+                    else:
+                        pass_rate_total = 0.0
+                    state_trajs_filtered = state_trajs[valid_mask]
+                    if state_trajs_filtered.nelement() == 0:
+                        endpoints = np.empty((0, 2), dtype=np.float32)
+                    else:
+                        endpoints = state_trajs_filtered[:, -1, :2].detach().to("cpu", dtype=torch.float32).numpy()
                     samples[method] = endpoints
-                    pos_iters = torch.empty((opt_iters_outer, 1, H, planner.state_dim), **tensor_args)
+                    if n_free > 0:
+                        pass_given_free = float(pass_mask[valid_mask].sum().item() / n_free * 100.0)
+                    else:
+                        pass_given_free = 0.0
+                    pass_stats[method.lower()] = {
+                        "pass_total": pass_rate_total,
+                        "n_total": n_total,
+                        "n_free": n_free,
+                        "pass_given_free": pass_given_free,
+                    }
+                    pos_iters = torch.empty((opt_iters_outer, 1, H if method in ['mppi', 'cem'] else 64, planner.state_dim), **tensor_args)
                     for i in range(opt_iters_outer):
                         pos_trajs = planner.get_state_trajectories_rollout(
                             controls=vel_iters[i, 0].unsqueeze(0), **observation
                         ).squeeze()
                         pos_iters[i, 0] = pos_trajs
-
                     trajs_iters = torch.cat((pos_iters, vel_iters), dim=-1)
                     pos_trajs_iters = robot.get_position(trajs_iters)
-                    paths[method] = pos_trajs_iters[-1]
+
+                    success_mask = torch.logical_and(valid_mask, pass_mask)
+                    if success_mask.any():
+                        success_indices = success_mask.nonzero(as_tuple=False).squeeze(-1)
+                        best_idx = success_indices[0]
+                        if method == 'cem':
+                            best_cost, best_pos = torch.min(weights[success_mask].squeeze(-1), dim=0)
+                            best_idx = success_indices[best_pos]
+                        elif method == 'mppi':
+                            best_weight, best_pos = torch.max(weights[success_mask], dim=0)
+                            best_idx = success_indices[best_pos]
+                        best_traj_state = state_trajs[best_idx:best_idx + 1]
+                        best_traj_pos = robot.get_position(best_traj_state)
+                        paths[method] = best_traj_pos
+                    else:
+                        paths[method] = pos_trajs_iters[-1]
 
     ws = task.ws_limits.cpu().numpy()
     ws_limits = (ws[0].tolist(), ws[1].tolist())  # ((xmin, ymin), (xmax, ymax))
 
-    _ = plot_overlay(
-        env=env,
-        colors=colors,
-        radius=robot.radius,
-        endpoints_dict=samples,
-        ws_limits=ws_limits,
-        start=start_state.cpu().numpy().tolist(),
-        goal=goal_state.cpu().numpy().tolist(),
-        save_path=f'results/mb/{args.e.lower()}_{args.type}_overlay'
-    )
-
-    _ = plot_paths(
-        task=task,
-        colors=colors,
-        env=env,
-        start=start_state.cpu().numpy().tolist(),
-        goal=goal_state.cpu().numpy().tolist(),
-        save_path=f'results/mb/{args.e.lower()}_{args.type}_paths',
-        path_dict=paths
-    )
+    print_overlay(endpoints_dict=samples, stats_dict=pass_stats)
+    if plot:
+        _ = plot_paths(
+            task=task,
+            colors=colors,
+            env=env,
+            start=start_state.cpu().numpy().tolist(),
+            goal=goal_state.cpu().numpy().tolist(),
+            save_path=f'results/mb/{args.e.lower()}_{args.type}_paths',
+            path_dict=paths
+        )

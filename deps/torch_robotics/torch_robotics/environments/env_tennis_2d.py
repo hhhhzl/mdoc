@@ -6,13 +6,14 @@ from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 from matplotlib import pyplot as plt
 
+
 class EnvTennis2D(EnvBase):
     def __init__(self,
                  name='EnvTennis2D',
                  corridor_width: float = 0.42,
                  wall_thickness: float = 0.02,
                  chair_to_center: float = 0.4,
-                 chair_length: float = 0.4,
+                 chair_length: float = 0.3,
                  chair_width: float = 0.1,
                  limits: torch.Tensor = None,
                  tensor_args=None,
@@ -89,8 +90,8 @@ class EnvTennis2D(EnvBase):
         ]
 
         chair_field = MultiBoxField(np.array(chair_centers, dtype=np.float32),
-                                       np.array(chair_sizes, dtype=np.float32),
-                                       tensor_args=tensor_args)
+                                    np.array(chair_sizes, dtype=np.float32),
+                                    tensor_args=tensor_args)
 
         obj_list = [
             box_field,
