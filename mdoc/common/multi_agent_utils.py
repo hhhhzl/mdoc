@@ -26,6 +26,8 @@ import torch
 from typing import List
 from copy import deepcopy
 import numpy as np
+
+
 # Project imports.
 
 
@@ -184,23 +186,29 @@ def get_start_goal_pos_random_in_env(num_agents,
                                      env_class,
                                      tensor_args,
                                      margin=0.15,
-                                     obstacle_margin=0.16):  # 0.08
+                                     obstacle_margin=0.16, # 0.08
+                                     reload_env=True,
+                                     size=1
+                                     ):  # 0.08
     # In this map, agents can be place anywhere with x y in [-0.9, 0.9]. As long as they are not too close to
     # each other.
     start_state_pos_l = []
     goal_state_pos_l = []
 
-    # Get the obstacles in this map.
-    env = env_class(tensor_args=tensor_args)
-    # Get a distance field.
-    env_sdf = env.grid_map_sdf_obj_fixed
+    if reload_env:
+        # Get the obstacles in this map.
+        env = env_class(tensor_args=tensor_args)
+        # Get a distance field.
+        env_sdf = env.grid_map_sdf_obj_fixed
+    else:
+        env_sdf = env_class.grid_map_sdf_obj_fixed
 
     # Get the starts. Get all of them together and then check if they are too close.
     for i in [0, 1]:
         # Start building the random state.
         random_state = None
         while True:
-            random_state = torch.rand(1, 2) * 1.9 - 0.95
+            random_state = torch.rand(1, 2) * (size * 2 - 0.1) - (size - 0.05)
             random_state = random_state.to(**tensor_args)
             # Check if the state is not in an obstacle.
             if torch.all(env_sdf(random_state) > obstacle_margin):
@@ -210,7 +218,7 @@ def get_start_goal_pos_random_in_env(num_agents,
         state_b = random_state
         for _ in range(num_agents - 1):
             while True:
-                new_state = torch.rand(1, 2) * 1.9 - 0.95
+                new_state = torch.rand(1, 2) * (size * 2 - 0.1) - (size - 0.05)
                 new_state = new_state.to(**tensor_args)
                 pairwise_distances = torch.sqrt(torch.sum((new_state - state_b) ** 2, dim=1))
                 # Check if the state is not in an obstacle.

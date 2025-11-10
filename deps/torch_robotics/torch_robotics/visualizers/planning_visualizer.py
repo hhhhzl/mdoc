@@ -10,12 +10,20 @@ import matplotlib.collections as mcoll
 from torch_robotics.torch_utils.torch_utils import to_numpy
 from mdoc.plotting.base import remove_borders, remove_axes_labels_ticks
 
-def create_fig_and_axes(dim=2):
-    fig = plt.figure(layout='tight')
+
+def create_fig_and_axes(dim=2, facecolor='white', rect= False):
+    fig = plt.figure(layout='tight', facecolor=facecolor)
     if dim == 3:
         ax = fig.add_subplot(projection='3d')
     else:
         ax = fig.add_subplot()
+
+    if rect:
+        rect = plt.Rectangle(
+            (0, 0), 1, 1, transform=ax.transAxes,
+            color='#D3D3D3', fill=False, lw=2, zorder=10
+        )
+        ax.add_patch(rect)
 
     return fig, ax
 
@@ -35,7 +43,8 @@ class PlanningVisualizer:
         self.cmaps_robot = {'collision': 'Greys', 'free': 'YlOrRd'}
 
     def render_robot_trajectories(self, fig=None, ax=None, render_planner=False, trajs=None, traj_best=None,
-                                  show_robot_in_image=False, constraints_l=None, check_collision=True, color_same=False, **kwargs):
+                                  show_robot_in_image=False, constraints_l=None, check_collision=True, color_same=False,
+                                  **kwargs):
         if fig is None or ax is None:
             fig, ax = create_fig_and_axes(dim=self.env.dim)
 
@@ -43,7 +52,8 @@ class PlanningVisualizer:
             self.planner.render(ax)
         self.env.render(ax)
         if trajs is not None and check_collision:
-            _, trajs_coll_idxs, _, trajs_free_idxs, _ = self.task.get_trajs_collision_and_free(trajs, return_indices=True)
+            _, trajs_coll_idxs, _, trajs_free_idxs, _ = self.task.get_trajs_collision_and_free(trajs,
+                                                                                               return_indices=True)
             kwargs['colors'] = []
             for i in range(len(trajs_coll_idxs) + len(trajs_free_idxs)):
                 kwargs['colors'].append(self.colors['collision'] if i in trajs_coll_idxs else self.colors['free'])
@@ -103,7 +113,7 @@ class PlanningVisualizer:
             """
             print(idxs[i], "/", H, end="\r")
             ax.clear()
-            ax.set_title(f"step: {idxs[i]}/{H-1}")
+            ax.set_title(f"step: {idxs[i]}/{H - 1}")
             if plot_trajs:
                 self.render_robot_trajectories(
                     fig=fig, ax=ax, trajs=trajs, start_state=start_state, goal_state=goal_state, **kwargs
@@ -118,7 +128,8 @@ class PlanningVisualizer:
             for i, q in enumerate(qs):
                 self.robot.render(
                     ax, q=q,
-                    color=self.colors_robot['collision'] if self.task.compute_collision(q, margin=0.0) else self.colors_robot['free'],
+                    color=self.colors_robot['collision'] if self.task.compute_collision(q, margin=0.0) else
+                    self.colors_robot['free'],
                     arrow_length=0.1, arrow_alpha=0.5, arrow_linewidth=1.,
                     cmap=self.cmaps['collision'] if self.task.compute_collision(q, margin=0.0) else self.cmaps['free'],
                     **kwargs
@@ -169,22 +180,24 @@ class PlanningVisualizer:
             """
             print(idxs[i], "/", H, end="\r")
             ax.clear()
-            ax.set_title(f"step: {idxs[i]}/{H-1}")
+            ax.set_title(f"step: {idxs[i]}/{H - 1}")
             if plot_trajs:
-                for trajs, color, start_state, goal_state in zip(trajs_l_selection, colors, start_state_l, goal_state_l):
+                for trajs, color, start_state, goal_state in zip(trajs_l_selection, colors, start_state_l,
+                                                                 goal_state_l):
                     self.render_robot_trajectories(
                         fig=fig,
                         ax=ax,
                         trajs=trajs,
                         start_state=start_state,
                         goal_state=goal_state,
-                        colors=[color]*len(trajs),
+                        colors=[color] * len(trajs),
                         **kwargs
                     )
             else:
                 self.env.render(ax)
 
-            for trajs_selection, color, start_state, goal_state in zip(trajs_l_selection, colors, start_state_l, goal_state_l):
+            for trajs_selection, color, start_state, goal_state in zip(trajs_l_selection, colors, start_state_l,
+                                                                       goal_state_l):
                 qs = trajs_selection[:, i, :]  # batch, q_dim
                 if qs.ndim == 1:
                     qs = qs.unsqueeze(0)  # interface (batch, q_dim)
@@ -197,7 +210,8 @@ class PlanningVisualizer:
                         ax, q=q,
                         color=color,
                         arrow_length=0.1, arrow_alpha=0.5, arrow_linewidth=1.,
-                        cmap=self.cmaps['collision'] if self.task.compute_collision(q, margin=0.0) else self.cmaps['free'],
+                        cmap=self.cmaps['collision'] if self.task.compute_collision(q, margin=0.0) else self.cmaps[
+                            'free'],
                         **kwargs
                     )
 
@@ -223,7 +237,6 @@ class PlanningVisualizer:
 
         create_animation_video(fig, animate_fn, n_frames=n_frames, **kwargs)
 
-
     def animate_opt_iters_robots(
             self, trajs=None, traj_best=None, start_state=None, goal_state=None,
             n_frames=10,
@@ -243,7 +256,7 @@ class PlanningVisualizer:
 
         def animate_fn(i):
             ax.clear()
-            ax.set_title(f"iter: {idxs[i]}/{S-1}")
+            ax.set_title(f"iter: {idxs[i]}/{S - 1}")
             self.render_robot_trajectories(
                 fig=fig, ax=ax, trajs=trajs_selection[i],
                 traj_best=traj_best if i == n_frames - 1 else None,
@@ -305,8 +318,9 @@ class PlanningVisualizer:
         axs[-1, 1].set_xlabel('Timesteps')
         timesteps = np.arange(H).reshape(1, -1)
         for i, ax in enumerate(axs):
-            for trajs_filtered, color in zip([(trajs_coll_pos_np, trajs_coll_vel_np), (trajs_free_pos_np, trajs_free_vel_np)],
-                                             ['black', 'orange']):
+            for trajs_filtered, color in zip(
+                    [(trajs_coll_pos_np, trajs_coll_vel_np), (trajs_free_pos_np, trajs_free_vel_np)],
+                    ['black', 'orange']):
                 # Positions and velocities
                 for j, trajs_filtered_ in enumerate(trajs_filtered):
                     if trajs_filtered_.size > 0:
@@ -327,9 +341,9 @@ class PlanningVisualizer:
             if vel_start_state is not None:
                 ax[1].scatter(0, vel_start_state[i], color='green')
             if pos_goal_state is not None:
-                ax[0].scatter(H-1, pos_goal_state[i], color='purple')
+                ax[0].scatter(H - 1, pos_goal_state[i], color='purple')
             if vel_goal_state is not None:
-                ax[1].scatter(H-1, vel_goal_state[i], color='purple')
+                ax[1].scatter(H - 1, vel_goal_state[i], color='purple')
             # Y label
             ax[0].set_ylabel(f'q_{i}')
             # Set limits
@@ -356,12 +370,12 @@ class PlanningVisualizer:
 
         def animate_fn(i):
             [ax.clear() for ax in axs.ravel()]
-            fig.suptitle(f"iter: {idxs[i]}/{S-1}")
+            fig.suptitle(f"iter: {idxs[i]}/{S - 1}")
             self.plot_joint_space_state_trajectories(
                 fig=fig, axs=axs,
                 trajs=trajs_selection[i], **kwargs
             )
-            if i == n_frames -1 and traj_best is not None:
+            if i == n_frames - 1 and traj_best is not None:
                 self.plot_joint_space_state_trajectories(
                     fig=fig, axs=axs,
                     trajs=trajs_selection[i],

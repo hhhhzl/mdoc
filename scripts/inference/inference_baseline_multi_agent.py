@@ -16,7 +16,7 @@ from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_l
     compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
-from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar, KCBSLower, LatticeLower
+from mdoc.planners.single_agent import MPD, MPDEnsemble, MDOCEnsemble, WAStar, KCBSLower
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
