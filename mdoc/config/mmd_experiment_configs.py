@@ -100,6 +100,16 @@ class EnvEmpty2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
 
 
+class EnvConveyor2DRobotPlanarDiskCircle(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvConveyor2D_RobotPlanarDisk_Circle"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(num_agents, radius=0.8)
+        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
 class EnvConveyor2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
     def __init__(self):
         self.name = "EnvConveyor2D_RobotPlanarDisk_Boundary"

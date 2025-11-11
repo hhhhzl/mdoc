@@ -54,6 +54,7 @@ class MultiAgentPlanningExperimentConfig:
                         single_trial_config = MultiAgentPlanningSingleTrialConfig()
                         single_trial_config.time_str = self.time_str
                         single_trial_config.trial_number = trial_number
+                        single_trial_config.seed = trial_number
                         single_trial_config.num_agents = num_agents
                         single_trial_config.stagger_start_time_dt = self.stagger_start_time_dt
                         single_trial_config.multi_agent_planner_class = multi_agent_planner_class
@@ -115,6 +116,9 @@ class MultiAgentPlanningSingleTrialConfig:
     # The model coord skeleton for each agent.
     agent_skeleton_l = []
     seed = 0
+
+    # in experiment this mode, we will generate seed for trail, otherwise, seed will be passed from params from /config
+    run_experiment = True
 
     def save(self, results_dir: str):
         # Save the config.

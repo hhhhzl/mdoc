@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+        default=[2, 3],
         help='List of number of agents to test'
     )
 
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default=EnvironmentType.EMPTY_DISK_BOUNDARY.value,
+        default=EnvironmentType.CONVEYOR_DISK_CIRCLE.value,
         choices=EnvironmentType.choices(),
         help='Environment/instance to use for the experiment'
     )
@@ -66,13 +66,13 @@ def parse_args():
     parser.add_argument(
         '--rl',
         type=int,
-        default=60 * 20,
+        default=1000,
         help='Runtime limit in seconds'
     )
     parser.add_argument(
         '--nt',
         type=int,
-        default=1,
+        default=2,
         help='Number of trials to run for each configuration'
     )
     parser.add_argument(
@@ -122,7 +122,6 @@ if __name__ == "__main__":
 
     # Set the experiment config.
     experiment_config.num_agents_l = args.n
-
     experiment_config.instance_name = EnvironmentType.from_string(args.e).value
     experiment_config.stagger_start_time_dt = args.st
     experiment_config.multi_agent_planner_class_l = args.hps  # , "ECBS", "PP", "XCBS", "CBS"]

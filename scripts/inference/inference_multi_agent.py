@@ -11,15 +11,14 @@ import torch
 from einops._torch_specific import allow_ops_in_compiled_graph  # requires einops>=0.6.1
 
 # Project imports.
-from torch_robotics.torch_utils.torch_utils import get_torch_device, freeze_torch_model_params
-from torch_robotics.trajectory.metrics import compute_smoothness, compute_path_length, compute_variance_waypoints, \
-    compute_average_acceleration, compute_average_acceleration_from_pos_vel, compute_path_length_from_pos, compute_smoothness_metric
+from torch_robotics.torch_utils.torch_utils import get_torch_device
+from torch_robotics.trajectory.metrics import compute_path_length_from_pos, compute_smoothness_metric
 from torch_robotics.environments import *
 from mdoc.planners.multi_agent import CBS, PrioritizedPlanning
 from mdoc.common.constraints import MultiPointConstraint, VertexConstraint, EdgeConstraint
 from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
-from mdoc.common import get_start_goal_pos_circle
+from mdoc.common import get_start_goal_pos_circle, get_start_goal_pos_boundary, get_start_goal_pos_random_in_env
 from mdoc.common.pretty_print import *
 from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, get_result_dir_from_trial_config, TrialSuccessStatus
 from mdoc.planners.single_agent import (
@@ -33,27 +32,42 @@ from mdoc.planners.single_agent import (
 TRAINED_MODELS_DIR = './data_trained_models/'
 allow_ops_in_compiled_graph()
 
+device = get_torch_device('cpu')
+print(f">>>>>>>>> Using {str(device).upper()} <<<<<<<<<<<<<<<")
+tensor_args = {'device': device, 'dtype': torch.float32}
+
 
 def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # ============================
     # Start time per agent.
     # ============================
     start_time_l = [i * test_config.stagger_start_time_dt for i in range(test_config.num_agents)]
-
     # ============================
     # Arguments for the high/low level planner.
     # ============================
     if test_config.single_agent_planner_class in ['MDOCEnsemble']:
-        from mdoc.config.mdoc_params import MDOCParams as params
+        try:
+            envs_name = test_config.global_model_ids[0][0]
+        except:
+            envs_name = ''
+            NotImplementedError("Invalid Env Name")
+
+        if "empty" in envs_name.lower():
+            from mdoc.config.empty.mdoc_params import MDOCParams as params
+        elif 'conveyor' in envs_name.lower():
+            from mdoc.config.conveyor.mdoc_params import MDOCParams as params
+        else:
+            # general
+            from mdoc.config.mdoc_params import MDOCParams as params
         planner_alg = 'mdoc'
     elif test_config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
         planner_alg = 'mmd'
     elif test_config.single_agent_planner_class == 'WAStar':
-        from mdoc.config.wastar_params import MMPDParams as params
+        from mdoc.config.wastar_params import WASTARParams as params
         planner_alg = 'wastar'
     elif test_config.single_agent_planner_class == 'KCBSLower':
-        from mdoc.config.wastar_params import MMPDParams as params
+        from mdoc.config.kcbs_params import KCBSParams as params
         planner_alg = 'kcbs'
     else:
         raise ValueError(f'Unknown single agent planner class: {test_config.single_agent_planner_class}')
@@ -75,7 +89,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
         'trajectory_duration': params.trajectory_duration,
         'device': params.device,
         'debug': params.debug,
-        'seed': params.seed,
+        'seed': test_config.seed if test_config.run_experiment else params.seed,
         'results_dir': params.results_dir,
         'trained_models_dir': TRAINED_MODELS_DIR,
     }
@@ -359,16 +373,27 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # Render.
     # ============================
     if trial_success_status and len(paths_l) > 0:
+        smooth_path_l = smooth_trajs(paths_l, device=params.device)
         planner.render_paths(paths_l,
                              output_fpath=os.path.join(results_dir, f'{exp_name}.gif'),
+                             animation_duration=0,
+                             plot_trajs=True,
+                             show_robot_in_image=True)
+        planner.render_paths(smooth_path_l,
+                             output_fpath=os.path.join(results_dir, f'{exp_name}_smoothed.gif'),
                              animation_duration=0,
                              plot_trajs=True,
                              show_robot_in_image=True)
         if test_config.render_animation:
             paths_l = densify_trajs(paths_l,
                                     1)  # <------ Larger numbers produce nicer animations. But take longer to make too.
+            smooth_path_l = densify_trajs(smooth_path_l, 1)
             planner.render_paths(paths_l,
                                  output_fpath=os.path.join(results_dir, f'{exp_name}.gif'),
+                                 plot_trajs=True,
+                                 animation_duration=10)
+            planner.render_paths(smooth_path_l,
+                                 output_fpath=os.path.join(results_dir, f'{exp_name}_smoothed.gif'),
                                  plot_trajs=True,
                                  animation_duration=10)
 
@@ -387,7 +412,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=5,
+        default=10,
         help='Number of agents'
     )
     parser.add_argument(
@@ -432,7 +457,7 @@ def parse_args():
     parser.add_argument(
         '--rl',
         type=float,
-        default=1200,
+        default=1000,
         help='Runtime limit in seconds'
     )
     parser.add_argument(
@@ -486,6 +511,16 @@ def parse_args():
         action='append',
         help='Goal positions for multi-tile (provide as multiple [x,y] pairs)'
     )
+    parser.add_argument(
+        '--start_goal_setup',
+        type=str,
+        default='circle',
+        choices=[
+            'boundary',
+            'circle',
+            'random',
+        ],
+    )
 
     return parser.parse_args()
 
@@ -503,6 +538,8 @@ if __name__ == '__main__':
     config.runtime_limit = args.rl
     config.time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     config.render_animation = args.ra
+    # use params seed
+    config.run_experiment = False
 
     if config.single_agent_planner_class in ['MDOCEnsemble']:
         from mdoc.config.mdoc_params import MDOCParams as params
@@ -511,10 +548,10 @@ if __name__ == '__main__':
         from mdoc.config.mmd_params import MMDParams as params
         device = get_torch_device(params.device)
     elif config.single_agent_planner_class == 'WAStar':
-        from mdoc.config.wastar_params import MMPDParams as params
+        from mdoc.config.wastar_params import WASTARParams as params
         device = get_torch_device(params.device)
     elif config.single_agent_planner_class == 'KCBSLower':
-        from mdoc.config.wastar_params import MMPDParams as params
+        from mdoc.config.kcbs_params import KCBSParams as params
         device = get_torch_device(params.device)
     else:
         raise ValueError(f'Unknown single agent planner class: {config.single_agent_planner_class}')
@@ -527,9 +564,19 @@ if __name__ == '__main__':
 
         # Set up starts and goals
         config.agent_skeleton_l = [[[0, 0]]] * config.num_agents
-        torch.random.manual_seed(10)
-        config.start_state_pos_l, config.goal_state_pos_l = \
-            get_start_goal_pos_circle(config.num_agents, 0.8, device)
+        torch.random.manual_seed(42)
+
+        if args.start_goal_setup == "boundary":
+            config.start_state_pos_l, config.goal_state_pos_l = \
+                get_start_goal_pos_boundary(config.num_agents, 0.87, device)
+        elif args.start_goal_setup == "circle":
+            config.start_state_pos_l, config.goal_state_pos_l = \
+                get_start_goal_pos_circle(config.num_agents, 0.8, device)
+        elif args.start_goal_setup == "random":
+            config.start_state_pos_l, config.goal_state_pos_l = \
+                get_start_goal_pos_random_in_env(env_class=args.e, num_agents=config.num_agents, tensor_args=tensor_args)
+        else:
+            RuntimeError("No such choice")
 
         print("Starts:", config.start_state_pos_l)
         print("Goals:", config.goal_state_pos_l)

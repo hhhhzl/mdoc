@@ -28,10 +28,8 @@ from scipy.signal import savgol_filter
 from mdoc.config.mmd_params import MMDParams as params
 from torch_robotics.torch_utils.torch_utils import get_torch_device
 
-device = get_torch_device()
 
-
-def smooth_trajs(trajs, window_size=10, poly_order=2):
+def smooth_trajs(trajs, window_size=10, poly_order=2, device=get_torch_device()):
     """
     Smooth the trajectories.
     trajs: List of trajectories. Each is a tensor of shape (H, q_dim).

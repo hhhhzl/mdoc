@@ -19,7 +19,7 @@ from mdoc.trainer import get_dataset
 from torch_robotics.tasks.tasks_ensemble import PlanningTaskEnsemble
 from mdoc.common.constraints import *
 from mdoc.planners.common import FocalQueue
-from mdoc.config.wastar_params import MMPDParams as params
+from mdoc.config.wastar_params import WASTARParams as params
 
 
 class SearchState:
