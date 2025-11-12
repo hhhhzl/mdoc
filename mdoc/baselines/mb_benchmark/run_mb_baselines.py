@@ -11,7 +11,7 @@ from mp_baselines.planners.mbd import MDOC
 from mp_baselines.planners.rrt_star import RRTStar
 from mp_baselines.planners.rrt_connect import RRTConnect
 
-from torch_robotics.environments import EnvUMaze2D, EnvRandom2D, EnvSymBottleneck2D, EnvTennis2D, EnvEmpty2D
+from torch_robotics.environments import EnvUMaze2D, EnvRandom2DFixed, EnvSymBottleneck2D, EnvTennis2D, EnvEmpty2D
 from torch_robotics.robots.robot_planar_disk import RobotPlanarDisk
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.torch_utils.seed import fix_random_seed
@@ -81,7 +81,7 @@ def parse_args():
     parser.add_argument(
         '--planner',
         nargs='+',
-        default=['cem', 'mppi', "rrt*", 'mdoc'],
+        default=['cem', 'mppi', 'rrt*', 'mdoc'],
         choices=['rrt*', 'mdoc', 'mppi', 'cem'],
         help='List of single-agent planners'
     )
@@ -105,7 +105,7 @@ def parse_args():
     parser.add_argument(
         '--plot',
         type=bool,
-        default=False,
+        default=True,
         help='whether to plot'
     )
 
@@ -147,14 +147,10 @@ if __name__ == '__main__':
             left_x=-0.60,
             right_x=0.60,
         ),
-        "Random": EnvRandom2D(
+        "Random": EnvRandom2DFixed(
             precompute_sdf_obj_fixed=True,
             sdf_cell_size=0.01,
             tensor_args=tensor_args,
-            number_of_box=10,
-            number_of_sphere=0,
-            box_min_size=0.1,
-            box_max_size=0.1,
         ),
         "Tennis": EnvTennis2D(
             corridor_width=0.42 if args.type == "flat" else 0.32,

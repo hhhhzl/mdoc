@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[2, 3],
+        default=[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
         help='List of number of agents to test'
     )
 
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default=EnvironmentType.CONVEYOR_DISK_CIRCLE.value,
+        default=EnvironmentType.EMPTY_DISK_CIRCLE.value,
         choices=EnvironmentType.choices(),
         help='Environment/instance to use for the experiment'
     )
@@ -57,7 +57,7 @@ def parse_args():
     parser.add_argument(
         '--lps',
         nargs='+',
-        default=[LowerPlannerMethodType.MDOC.value],
+        default=[LowerPlannerMethodType.KCBS.value],
         choices=LowerPlannerMethodType.choices(),
         help='Single agent planner to use'
     )
@@ -72,7 +72,7 @@ def parse_args():
     parser.add_argument(
         '--nt',
         type=int,
-        default=2,
+        default=10,
         help='Number of trials to run for each configuration'
     )
     parser.add_argument(

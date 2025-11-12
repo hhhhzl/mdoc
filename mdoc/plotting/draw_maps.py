@@ -21,12 +21,12 @@ from mdoc.common import (
 
 if __name__ == "__main__":
     map = {
-        #"empty": EnvEmpty2D,
-        #"conveyor": EnvConveyor2D,
+        "empty": EnvEmpty2D,
+        "conveyor": EnvConveyor2D,
         "narrow": EnvTennis2D,
-        #"random": EnvRandom2D,
-        #"random_dense": EnvRandomDense2D,
-        #"random_large": EnvRandomLarge2D
+        "random": EnvRandom2D,
+        "random_dense": EnvRandomDense2D,
+        "random_large": EnvRandomLarge2D
     }
     tensor_args = get_default_tensor_args()
     device = tensor_args['device']

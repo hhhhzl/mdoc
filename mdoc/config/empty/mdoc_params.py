@@ -9,7 +9,7 @@ class MDOCParams:
     horizon = 64  # Number of steps in the trajectory.
     device = 'cpu'
     debug = True
-    seed = 42
+    seed = 18
     # Single-agent planning parameters.
     temp_sample = 0.5
     n_diffusion_steps = 100
@@ -18,8 +18,9 @@ class MDOCParams:
     # CBF
     cbf_tau = 0.05
     cbf_eta = 0.8
-    constraints_to_check = 15 if device == 'cpu' else 50
-    k_best = 2
+    cbf_margin = 0.01
+    constraints_to_check = 30 if device == 'cpu' else 50
+    k_best = 10
     base_beta = 0.05
     # Cost Function
     cost_control = 1
@@ -27,9 +28,14 @@ class MDOCParams:
     cost_time_smoothness = 1
     cost_acc_smoothness = 1
     cost_get_to_goal_early = 0.5
-    cost_sdf_collison = 5000
+    cost_sdf_collison = 5e3
     cost_terminal = 8
     projection_score_weight = 0.8
+
+    # runtime
+    compile = True
+    use_cuda_graph = False if device == 'cpu' else True
+
     # Torch.
     tensor_args = {'device': device, 'dtype': torch.float32}
     # Multi-agent planning parameters.

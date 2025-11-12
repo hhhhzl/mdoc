@@ -544,7 +544,8 @@ def total_cost(
 ) -> float:
     c = 0.0
     for _, P in plans.items():
-        if P.pos is None: return float("inf")
+        if P.pos is None:
+            return float("inf")
         c += float(P.ts[-1])
     return c
 

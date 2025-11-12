@@ -5,22 +5,23 @@ import torch
 class MDOCParams:
     # Robot parameters.
     robot_planar_disk_radius = 0.05
+    # robot_dt = 0.04
     n_samples = 64  # Batch size. Number of trajectories generated together.
-    horizon = 64  # Number of steps in the trajectory.
+    horizon = 64   # Number of steps in the trajectory.
     device = 'cpu'
     debug = True
     seed = 42
     # Single-agent planning parameters.
-    temp_sample = 0.1
-    n_diffusion_steps = 200
+    temp_sample = 0.001
+    n_diffusion_steps = 100
     beta0 = 1e-5
     betaT = 1e-2
     # CBF
     cbf_tau = 0.05
     cbf_eta = 0.8
-    cbf_margin = 0.02
-    constraints_to_check = 15 if device == 'cpu' else 50
-    k_best = 2
+    cbf_margin = 0.03
+    constraints_to_check = 30 if device == 'cpu' else 100
+    k_best = 15
     base_beta = 0.05
     # Cost Function
     cost_control = 1
@@ -28,9 +29,9 @@ class MDOCParams:
     cost_time_smoothness = 1
     cost_acc_smoothness = 1
     cost_get_to_goal_early = 0.5
-    cost_sdf_collison = 5000
+    cost_sdf_collison = 5e3
     cost_terminal = 8
-    projection_score_weight = 0.9
+    projection_score_weight = 0.8
 
     # runtime
     compile = True
@@ -60,6 +61,3 @@ class MDOCParams:
     grad_step = 1e-6
     factor_num_interpolated_points_for_collision = 1.5
     trajectory_duration = 5.0
-
-
-

@@ -39,7 +39,7 @@ class KCBSParams:
     wastar_focal_w = 1.5  # Focal weight.
 
     # Evaluation.
-    runtime_limit = 60  # 1 minute.
+    runtime_limit = 1000  # 1 minute.
     data_adherence_linear_deviation_fraction = 0.1  # Points closer to start-goal line than fraction * length adhere.
 
     # Torch.

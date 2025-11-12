@@ -127,7 +127,11 @@ class MDOCEnsemble(SingleAgentPlanner):
             dt = trajectory_duration / n_support_points  # time interval for finite differences
             robot.dt = dt
 
-            model_class = getattr(environments, model_id.split("-")[0])
+            env_name = model_id.split("-")[0]
+            if "random" in env_name.lower():
+                env_name += 'Fixed'
+
+            model_class = getattr(environments, env_name)
             model = model_class(tensor_args=tensor_args)
             self.models[j] = model
             self.robots[j] = robot
@@ -208,8 +212,8 @@ class MDOCEnsemble(SingleAgentPlanner):
                                               tensor_args=tensor_args)
 
         if start_state_pos is not None and goal_state_pos is not None:
-            print(f'start_state_pos: {start_state_pos}')
-            print(f'goal_state_pos: {goal_state_pos}')
+            print(f'[MDOC] start_state_pos: {start_state_pos}')
+            print(f'[MDOC] goal_state_pos: {goal_state_pos}')
         else:
             # Random initial and final positions
             n_tries = 100

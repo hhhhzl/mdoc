@@ -5,11 +5,13 @@ from tqdm import tqdm
 from copy import deepcopy
 import einops
 from torch_robotics.robots.robot_base import RobotState
-import torch._dynamo
 from mdoc.utils.mdoc_constraints import *
 
+import torch._dynamo
 torch._dynamo.config.suppress_errors = True
-torch.set_num_threads(16)
+# increase this if on a stronger CPU, this will allow a large graph (N_max, H) for ConstrainTensor
+# so we can increase constraints_to_check and horizon
+torch.set_num_threads(32)
 torch.set_num_interop_threads(1)
 
 from dataclasses import dataclass
@@ -81,7 +83,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             context_model=None,
             disable_recommended_params: bool = True,
             device: str = 'cpu',
-            compile: bool = True,
+            compile: bool = False,
             # compile with torch compile, not suggest to use on CPU for large number of robots > 10 and large horizon > 64
             use_cuda_graph: bool = True,
             **kwargs
@@ -108,6 +110,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             from mdoc.config.empty.mdoc_params import MDOCParams as mparams
         elif 'conveyor' in envs_name.lower():
             from mdoc.config.conveyor.mdoc_params import MDOCParams as mparams
+        elif 'random' in envs_name.lower():
+            from mdoc.config.random.mdoc_params import MDOCParams as mparams
         else:
             # general
             from mdoc.config.mdoc_params import MDOCParams as mparams
@@ -132,20 +136,24 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             "horizon": 64
         }
 
-        self.cbf_tau = 0.05
-        self.cbf_eta = 0.8
-        self.k_best = 2
-        self.base_beta = 0.05
+        self.cbf_tau = getattr(mparams, "cbf_tau", 0.05)
+        self.cbf_eta = getattr(mparams, "cbf_eta", 0.8)
+        self.k_best = getattr(mparams, "k_best", 10)
+        self.base_beta = getattr(mparams, "base_beta", 0.05)
         # Cost Function
-        self.cost_control = 1
-        self.cost_distance_to_goal = 5
-        self.cost_time_smoothness = 1
-        self.cost_acc_smoothness = 1
-        self.cost_get_to_goal_early = 0.5
-        self.cost_sdf_collison = 5000
-        self.cost_terminal = 8
-        self.projection_score_weight = 0.8
-        self.constraints_to_checks = 15
+        self.cost_control = getattr(mparams, "cost_control", 1)
+        self.cost_distance_to_goal = getattr(mparams, "cost_distance_to_goal", 5)
+        self.cost_time_smoothness = getattr(mparams, "cost_time_smoothness", 1)
+        self.cost_acc_smoothness = getattr(mparams, "cost_acc_smoothness", 1)
+        self.cost_get_to_goal_early = getattr(mparams, "cost_get_to_goal_early", 0.5)
+        self.cost_sdf_collison = getattr(mparams, "cost_sdf_collison", 5000)
+        self.cost_terminal = getattr(mparams, "cost_terminal", 8)
+        self.projection_score_weight = getattr(mparams, "projection_score_weight", 0.8)
+        self.constraints_to_checks = getattr(mparams, "constraints_to_checks", 30)
+        self.cbf_margin = getattr(mparams, "cbf_margin", 0.01)
+        dt = getattr(mparams, "robot_dt", None)
+        if dt:
+            self.robot.dt = dt
 
         # for double integrator
         self.cbf_k0, self.cbf_k1 = 1, 4
@@ -173,10 +181,15 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         self._sdf_tex_meta = None
 
         self.compile = compile
+        if getattr(mparams, "compile", None):
+            self.compile = mparams.compile
+        if getattr(mparams, "use_cuda_graph", None):
+            use_cuda_graph = mparams.use_cuda_graph
+
         if self.device == 'mps':
             self.compile = False
         if self.compile:
-            print(">>>>>> Preheat Compile >>>>>>>>")
+            print(">>>>>> Preheat Torch Compile && Cuda Graph (if cuda) >>>>>>>>")
             self._preheat(use_cuda_graph)
 
     def _prepare_soft_constraints(
@@ -271,8 +284,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         )
 
         def _fn(actions: torch.Tensor, constraints):
-            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
-                                                   constraints=constraints)
+            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions, constraints=constraints)
 
         from mdoc.utils.accelerators import RolloutAccelerator
         use_amp = True if self.device in ("cuda", "mps") else False
@@ -595,9 +607,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         # -------------------- CBF --------------------
         R = self.robot_radius
-        margin = 0.01
 
-        h = sdf_flat - (R + margin)  # (B*H,)
+        h = sdf_flat - (R + self.cbf_margin)  # (B*H,)
         u_flat = us_flat.clone()
 
         Anorm = A.norm(dim=-1)  # (B*H,)
@@ -620,10 +631,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         step = (-h * 0.5).clamp_min(0.0).clamp_max(0.10)  # (B*H,)
         q_ws_flat_new = q_ws_flat + step.unsqueeze(-1) * n  # (B*H,2)
         mask_si = (h < 0.0).view(-1, 1)  # (B*H,1)
-
-        blended = torch.where(mask_si, q_ws_flat_new - offset, q_init_exp) if has_tf else torch.where(mask_si,
-                                                                                                      q_ws_flat_new,
-                                                                                                      q_init_exp)
+        blended = torch.where(mask_si, q_ws_flat_new - offset, q_init_exp) if has_tf else torch.where(mask_si, q_ws_flat_new, q_init_exp)
         q_init_exp.copy_(blended)
 
         # -------------------- integrate --------------------
@@ -670,7 +678,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             near = (h_s < 0.08) & active  # (B,H,N)
 
             dist_masked = torch.where(near, dist, torch.full_like(dist, 1e9))
-            k = min(self.k_best, dist.shape[-1])
+            k = min(self.k_best, dist_masked.shape[-1])
             topk = torch.topk(dist_masked, k=k, dim=-1, largest=False)
             idx = topk.indices  # (B,H,K)
 
@@ -740,7 +748,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         return cost_sum, q_seq, free_mask
 
-    def _rollout_single_batch_new1(self, model_id, state_q, us, constraints):
+    def _rollout_single_batch_new1(self, model_id, state_q, us, constraints=None):
         env = self.env_models[model_id]
         B, H, _ = us.shape
         device = us.device
@@ -748,7 +756,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         q_init = state_q.view(1, 1, 2).to(device).expand(B, 1, 2)
         us_flat = us.reshape(B * H, 2)  # (B*H, 2)
-        q_init_expanded = q_init.expand(B, H, 2).reshape(B * H, 2)  # (B*H, 2)
+        q_init_expanded = q_init.expand(B, H, 2).reshape(B * H, 2).clone()  # (B*H, 2)
 
         q_ws_flat = q_init_expanded
         if self.transforms is not None and model_id in self.transforms:
@@ -759,9 +767,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         grad_flat = grad_flat.view(B * H, 2)
 
         R = self.robot_radius
-        margin = 0.01
-
-        h = sdf_flat - (R + margin)
+        h = sdf_flat - (R + self.cbf_margin)
         A = grad_flat
         u_flat = us_flat.clone()
 
@@ -772,32 +778,49 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         lhs = (A * u_flat).sum(dim=-1)
         den = (A.pow(2).sum(dim=-1) + 1e-9)
 
-        alpha = torch.zeros(B * H, device=device)
-        alpha[need] = torch.clamp((b[need] - lhs[need]) / den[need], min=0.0)
+        mask = need.to(u_flat.dtype)
+        alpha = ((b - lhs) / den).clamp_min(0.0) * mask
         u_flat = u_flat + alpha.unsqueeze(-1) * A
 
         lhs2 = (A * u_flat).sum(dim=-1)
         bad = goodA & (lhs2 < b)
-        alpha2 = torch.zeros(B * H, device=device)
-        alpha2[bad] = torch.clamp(((b - lhs2) / den)[bad], min=0.0)
+        bad_mask = bad.to(u_flat.dtype)
+        alpha2 = ((b - lhs2) / den).clamp_min(0.0) * bad_mask
         u_flat = u_flat + alpha2.unsqueeze(-1) * A
 
-        still_in = h < 0.0
-        if still_in.any():
-            step = (0.5 * (-h[still_in])).clamp_max(0.10)
-            n = torch.nn.functional.normalize(A[still_in], dim=-1)
-            q_ws_flat_new = q_ws_flat.clone()
-            q_ws_flat_new[still_in] = q_ws_flat_new[still_in] + step.unsqueeze(-1) * n
-            if self.transforms is not None and model_id in self.transforms:
-                q_init_expanded[still_in] = q_ws_flat_new[still_in] - self.transforms[model_id].to(device).view(1, -1)
-            else:
-                q_init_expanded[still_in] = q_ws_flat_new[still_in]
+        # still_mask = (h < 0.0).view(-1, 1)  # (B*H,1) bool
+        # mask_f = still_mask.to(q_ws_flat.dtype)
+        #
+        # n = torch.nn.functional.normalize(A, dim=-1)  # (B*H,2)
+        # step = (0.5 * (-h).clamp_min(0.0)).clamp_max(0.10)  # (B*H,)
+        # q_ws_flat_new = q_ws_flat + step.unsqueeze(-1) * n  # (B*H,2)
+        #
+        # if self.transforms is not None and model_id in self.transforms:
+        #     offset = self.transforms[model_id].to(device).view(1, -1)
+        #     q_init_expanded = torch.where(
+        #         still_mask,
+        #         q_ws_flat_new - offset,
+        #         q_init_expanded
+        #     )
+        # else:
+        #     q_init_expanded = torch.where(still_mask, q_ws_flat_new, q_init_expanded)
+
+        # still_in = h < 0.0
+        # if still_in.any():
+        #     step = (0.5 * (-h[still_in])).clamp_max(0.10)
+        #     n = torch.nn.functional.normalize(A[still_in], dim=-1)
+        #     q_ws_flat_new = q_ws_flat.clone()
+        #     q_ws_flat_new[still_in] = q_ws_flat_new[still_in] + step.unsqueeze(-1) * n
+        #     if self.transforms is not None and model_id in self.transforms:
+        #         q_init_expanded[still_in] = q_ws_flat_new[still_in] - self.transforms[model_id].to(device).view(1, -1)
+        #     else:
+        #         q_init_expanded[still_in] = q_ws_flat_new[still_in]
 
         u_safe = u_flat.reshape(B, H, 2)
         q_seq = q_init + torch.cumsum(u_safe * dt, dim=1)
 
         # ========= Vertex Constraints ======== #
-        # C_list, R_list, TM_list = [], [], []
+        C_list, R_list, TM_list = [], [], []
         # if hasattr(self, "soft_constraints") and (model_id in self.soft_constraints):
         #     for sph in (self.soft_constraints[model_id] or []):
         #         C_cc = sph.qs.to(device)[:, :2]
@@ -811,6 +834,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         #             C_list.append(C_cc)  # (n,2)
         #             R_list.append(R_cc)  # (n,)
         #             TM_list.append(TM_cc)  # (n,H)
+        #
+        # print(len(C_list), len(R_list), len(TM_list), ">>>>>>>>>>>>>>>>>")
         C_list = [constraints.C2[model_id]]  # (N_max, 2)
         R_list = [constraints.R[model_id]]  # (N_max,)
         TM_list = [constraints.TM[model_id]]
@@ -835,41 +860,65 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
             # time window & Narrow
             active = TM_all.view(1, H, -1).expand(B, -1, -1)  # (B,H,N)
-            tau_s = 0.08
-            near = (h_s < tau_s) & active  # (B,H,N)
+            near = (h_s < 0.08) & active  # (B,H,N)
 
-            if near.any():
-                # Top-K
-                K = 2
-                dist_masked = torch.where(near, dist, torch.full_like(dist, 1e9))
-                k = min(K, dist_masked.shape[-1])
-                topk = torch.topk(dist_masked, k=k, dim=-1, largest=False)
-                idx = topk.indices  # (B,H,K)
+            dist_masked = torch.where(near, dist, torch.full_like(dist, 1e9)) # Top-K
+            k = min(self.k_best, dist_masked.shape[-1])
+            topk = torch.topk(dist_masked, k=k, dim=-1, largest=False)
+            idx = topk.indices  # (B,H,K)
 
-                sel_A = torch.gather(A_s, 2, idx.unsqueeze(-1).expand(-1, -1, -1, 2))  # (B,H,K,2)
-                sel_h = torch.gather(h_s, 2, idx)  # (B,H,K)
+            sel_A = torch.gather(A_s, 2, idx.unsqueeze(-1).expand(-1, -1, -1, 2))  # (B,H,K,2)
+            sel_h = torch.gather(h_s, 2, idx)  # (B,H,K)
 
-                # ---- priority_weight (for future) ----
-                sign = +1.0
-                if hasattr(self, "agent_id"):
-                    sign = +1.0 if (self.agent_id % 2 == 0) else -1.0
-                scale_pw = 1.0
+            # keep here for future priority selection for deal lock optimization
+            sign = 1.0 if (getattr(self, "agent_id", 0) % 2 == 0) else -1.0
+            scale_pw = 1.0
+            beta = sign * self.base_beta * scale_pw
 
-                beta = sign * self.base_beta * scale_pw
-                sel_b = - (self.cbt_eta / dt) * sel_h + beta  # (B,H,K)
-                U = u_safe.clone()  # (B,H,2)
+            den_k = (sel_A * sel_A).sum(dim=-1).add_(1e-9)  # (B,H,K)
+            sel_b = -(self.cbf_eta / dt) * sel_h + beta
+            U = u_safe.clone()
 
-                for kk in range(k):
-                    Ak = sel_A[:, :, kk, :]  # (B,H,2)
-                    bk = sel_b[:, :, kk]  # (B,H)
-                    lhs_k = (Ak * U).sum(dim=-1)  # (B,H)
-                    viol = lhs_k < bk
-                    if viol.any():
-                        den_k = (Ak.pow(2).sum(dim=-1) + 1e-9)
-                        alpha_k = torch.zeros_like(lhs_k)
-                        alpha_k[viol] = (bk[viol] - lhs_k[viol]) / den_k[viol]
-                        U = U + alpha_k.unsqueeze(-1) * Ak
-                u_safe = U  #
+            for kk in range(k):
+                Ak = sel_A[:, :, kk, :]  # (B,H,2)
+                bk = sel_b[:, :, kk]  # (B,H)
+                lhsk = (Ak * U).sum(dim=-1)  # (B,H)
+                viol = (lhsk < bk).to(U.dtype)  # (B,H) float mask
+                num = (bk - lhsk).clamp_min(0.0)  # (B,H)
+                alpha_k = (num / den_k[:, :, kk]) * viol  # (B,H)
+                U = U + alpha_k.unsqueeze(-1) * Ak
+            u_safe = U
+
+            # if near.any():
+            #     dist_masked = torch.where(near, dist, torch.full_like(dist, 1e9))
+            #     k = min(self.k_best, dist_masked.shape[-1])
+            #     topk = torch.topk(dist_masked, k=k, dim=-1, largest=False)
+            #     idx = topk.indices  # (B,H,K)
+            #
+            #     sel_A = torch.gather(A_s, 2, idx.unsqueeze(-1).expand(-1, -1, -1, 2))  # (B,H,K,2)
+            #     sel_h = torch.gather(h_s, 2, idx)  # (B,H,K)
+            #
+            #     # ---- priority_weight (for future) ----
+            #     sign = + 1.0
+            #     if hasattr(self, "agent_id"):
+            #         sign = +1.0 if (self.agent_id % 2 == 0) else -1.0
+            #     scale_pw = 1.0
+            #
+            #     beta = sign * self.base_beta * scale_pw
+            #     sel_b = - (self.cbf_eta / dt) * sel_h + beta  # (B,H,K)
+            #     U = u_safe.clone()  # (B,H,2)
+            #
+            #     for kk in range(k):
+            #         Ak = sel_A[:, :, kk, :]  # (B,H,2)
+            #         bk = sel_b[:, :, kk]  # (B,H)
+            #         lhs_k = (Ak * U).sum(dim=-1)  # (B,H)
+            #         viol = lhs_k < bk
+            #         if viol.any():
+            #             den_k = (Ak.pow(2).sum(dim=-1) + 1e-9)
+            #             alpha_k = torch.zeros_like(lhs_k)
+            #             alpha_k[viol] = (bk[viol] - lhs_k[viol]) / den_k[viol]
+            #             U = U + alpha_k.unsqueeze(-1) * Ak
+            #     u_safe = U  #
 
         q_seq = q_init + torch.cumsum(u_safe * dt, dim=1)
 
@@ -951,8 +1000,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if self.compile:
             costs, q_seq, free_mask = self._acc_rollout.run(actions, self.constraints_ro)
         else:
-            costs, q_seq, free_mask = self._rollout_single_batch_new2(model_id, self.state_inits.q, actions,
-                                                                      self.constraints_ro)
+            costs, q_seq, free_mask = self._rollout_single_batch_new2(model_id, self.state_inits.q, actions, self.constraints_ro)
 
         traj_0s[..., :self.robot.q_dim] = q_seq
 
@@ -1015,7 +1063,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         # calculate score function
         score = 1 / (1.0 - model_params['alphas_bar'][i]) * (
-                - traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
+             - traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
 
         # apply smooth as soft constraints
         # score = apply_smooth_guidance_to_score(

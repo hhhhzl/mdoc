@@ -44,7 +44,8 @@ class MultiAgentPlannerType(Enum):
 class LowerPlannerMethodType(Enum):
     MDOC = 'MDOCEnsemble'
     # baselines
-    WASTAR = 'WASTAR'
+    WASTAR = 'WAStar'
+    WASTARDATA = 'WAStarData'
     KCBS = "KCBSLower"
     MMD = 'MMDEnsemble'
 

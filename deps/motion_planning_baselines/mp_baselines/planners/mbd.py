@@ -4,6 +4,7 @@ from mp_baselines.planners.base import MPPlanner
 from mdoc.models.diffusion_models.mbd_ensemble import ModelBasedDiffusionEnsemble
 from mdoc.common import smooth_trajs
 
+
 class MDOC(MPPlanner):
     """
     MDOC planner
@@ -18,22 +19,22 @@ class MDOC(MPPlanner):
     """
 
     def __init__(
-        self,
-        *,
-        robot,
-        env_model,
-        start_state_pos: torch.Tensor,
-        goal_state_pos: torch.Tensor,
-        rollout_steps: int,
-        n_diffusion_steps: int = 64,
-        n_samples: int = 256,
-        temp_sample: float = 1.0,
-        seed: int = 0,
-        transforms=None,
-        enable_demo: bool = False,
-        tensor_args=None,
-        device: str = None,
-        **kwargs,
+            self,
+            *,
+            robot,
+            env_model,
+            start_state_pos: torch.Tensor,
+            goal_state_pos: torch.Tensor,
+            rollout_steps: int,
+            n_diffusion_steps: int = 64,
+            n_samples: int = 256,
+            temp_sample: float = 1.0,
+            seed: int = 0,
+            transforms=None,
+            enable_demo: bool = False,
+            tensor_args=None,
+            device: str = None,
+            **kwargs,
     ):
         super().__init__(name="MDOC", tensor_args=tensor_args or {})
 
@@ -43,7 +44,7 @@ class MDOC(MPPlanner):
 
         self.robot = robot
         self.state_dim = getattr(robot, "q_dim", 2)  # position dimension (planar default=2)
-        self.control_dim = self.state_dim            # single-integrator: u has same dim as q
+        self.control_dim = self.state_dim  # single-integrator: u has same dim as q
         self.rollout_steps = int(rollout_steps)
         self.n_diffusion_steps = int(n_diffusion_steps)
         self.n_samples = int(n_samples)
@@ -114,7 +115,7 @@ class MDOC(MPPlanner):
         else:
             num_ctrl_samples = controls.shape[0]
 
-        costs, q_seq, _ = self._ensemble._rollout_single_batch_new2_ultrafast(
+        costs, q_seq, _ = self._ensemble._rollout_single_batch_new1(
             model_id=0,
             state_q=self._ensemble.state_inits.q,
             us=controls,
@@ -170,7 +171,7 @@ class MDOC(MPPlanner):
         actions = traj_0s[..., self.state_dim:]
 
         # Batch rollout & cost with collision awareness
-        costs, q_seq, free_mask = self._ensemble._rollout_single_batch_new2_ultrafast(
+        costs, q_seq, free_mask = self._ensemble._rollout_single_batch_new1(
             model_id=0, state_q=self._ensemble.state_inits.q, us=actions
         )
 

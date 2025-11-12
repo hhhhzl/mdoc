@@ -56,6 +56,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
             from mdoc.config.empty.mdoc_params import MDOCParams as params
         elif 'conveyor' in envs_name.lower():
             from mdoc.config.conveyor.mdoc_params import MDOCParams as params
+        elif 'random' in envs_name.lower():
+            from mdoc.config.random.mdoc_params import MDOCParams as params
         else:
             # general
             from mdoc.config.mdoc_params import MDOCParams as params
@@ -63,7 +65,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     elif test_config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
         planner_alg = 'mmd'
-    elif test_config.single_agent_planner_class == 'WAStar':
+    elif test_config.single_agent_planner_class in ['WAStar', 'WAStarData']:
         from mdoc.config.wastar_params import WASTARParams as params
         planner_alg = 'wastar'
     elif test_config.single_agent_planner_class == 'KCBSLower':
@@ -412,7 +414,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=10,
+        default=5,
         help='Number of agents'
     )
     parser.add_argument(
@@ -437,7 +439,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='KCBSLower',
+        default='MMDEnsemble',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -477,7 +479,11 @@ def parse_args():
             'EnvEmptyNoWait2D-RobotPlanarDisk',
             'EnvConveyor2D-RobotPlanarDisk',
             'EnvHighways2D-RobotPlanarDisk',
-            'EnvDropRegion2D-RobotPlanarDisk'
+            'EnvDropRegion2D-RobotPlanarDisk',
+            'EnvRandom2D-RobotPlanarDisk',
+            'EnvRandomDense2D-RobotPlanarDisk',
+            'EnvRandomLarge2D-RobotPlanarDisk',
+            'EnvRandomExtraLarge2D-RobotPlanarDisk'
         ],
         help='Global model ID for single tile')
 
@@ -547,7 +553,7 @@ if __name__ == '__main__':
     elif config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
         device = get_torch_device(params.device)
-    elif config.single_agent_planner_class == 'WAStar':
+    elif config.single_agent_planner_class in ['WAStar', 'WAStarData']:
         from mdoc.config.wastar_params import WASTARParams as params
         device = get_torch_device(params.device)
     elif config.single_agent_planner_class == 'KCBSLower':
@@ -573,8 +579,17 @@ if __name__ == '__main__':
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_circle(config.num_agents, 0.8, device)
         elif args.start_goal_setup == "random":
+            env = EnvRandom2DFixed(tensor_args=tensor_args)
             config.start_state_pos_l, config.goal_state_pos_l = \
-                get_start_goal_pos_random_in_env(env_class=args.e, num_agents=config.num_agents, tensor_args=tensor_args)
+                get_start_goal_pos_random_in_env(
+                    env_class=env,
+                    num_agents=config.num_agents,
+                    tensor_args=tensor_args,
+                    obstacle_margin=0.15,
+                    margin=0.25,
+                    reload_env=False
+                )
+            # config.start_state_pos_l, config.goal_state_pos_l = torch.tensor([-0.2226,  0.8727], **tensor_args), torch.tensor([0.8257, 0.1778], **tensor_args)
         else:
             RuntimeError("No such choice")
 
