@@ -57,7 +57,7 @@ def parse_args():
     parser.add_argument(
         '--lps',
         nargs='+',
-        default=[LowerPlannerMethodType.KCBS.value],
+        default=[LowerPlannerMethodType.MMD.value],
         choices=LowerPlannerMethodType.choices(),
         help='Single agent planner to use'
     )
