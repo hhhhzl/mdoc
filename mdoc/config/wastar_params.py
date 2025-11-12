@@ -2,7 +2,7 @@ import torch
 
 
 # A central location for aggregating the parameters used across files.
-class MMPDParams:
+class WASTARParams:
     # Robot parameters.
     robot_planar_disk_radius = 0.05
     # Single-agent planning parameters.
@@ -22,7 +22,7 @@ class MMPDParams:
     trajectory_duration = 5.0
     device = 'cpu'
     debug = True
-    seed = 18
+    seed = 42
     results_dir = 'logs'
 
     # Multi-agent planning parameters.
@@ -39,7 +39,7 @@ class MMPDParams:
     wastar_focal_w = 1.5  # Focal weight.
 
     # Evaluation.
-    runtime_limit = 60  # 1 minute.
+    runtime_limit = 1000  # 1 minute.
     data_adherence_linear_deviation_fraction = 0.1  # Points closer to start-goal line than fraction * length adhere.
 
     # Torch.

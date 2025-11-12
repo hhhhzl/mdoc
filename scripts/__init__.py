@@ -6,10 +6,9 @@ class EnvironmentType(Enum):
     EMPTY_DISK_CIRCLE = "EnvEmpty2DRobotPlanarDiskCircle"
     EMPTY_DISK_BOUNDARY = "EnvEmpty2DRobotPlanarDiskBoundary"
     EMPTY_DISK_RANDOM = "EnvEmpty2DRobotPlanarDiskRandom"
-
+    CONVEYOR_DISK_CIRCLE = 'EnvConveyor2DRobotPlanarDiskCircle'
     CONVEYOR_DISK_BOUNDARY = "EnvConveyor2DRobotPlanarDiskBoundary"
     CONVEYOR_DISK_RANDOM = "EnvConveyor2DRobotPlanarDiskRandom"
-
     HIGHWAYS_DISK_SMALL_CIRCLE = "EnvHighways2DRobotPlanarDiskSmallCircle"
     HIGHWAYS_DISK_RANDOM = "EnvHighways2DRobotPlanarDiskRandom"
     DROP_REGION_DISK_BOUNDARY = "EnvDropRegion2DRobotPlanarDiskBoundary"
@@ -45,7 +44,8 @@ class MultiAgentPlannerType(Enum):
 class LowerPlannerMethodType(Enum):
     MDOC = 'MDOCEnsemble'
     # baselines
-    WASTAR = 'WASTAR'
+    WASTAR = 'WAStar'
+    WASTARDATA = 'WAStarData'
     KCBS = "KCBSLower"
     MMD = 'MMDEnsemble'
 

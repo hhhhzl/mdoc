@@ -45,36 +45,26 @@ class MDOCEnsemble(SingleAgentPlanner):
             planner_alg: str,
             start_state_pos: torch.tensor,
             goal_state_pos: torch.tensor,
-
-            #
-            use_guide_on_extra_objects_only: bool,
-            start_guide_steps_fraction: float,
-            n_guide_steps: int,
-            n_diffusion_steps_without_noise: int,
             n_diffusion_steps: int,
-
-            # costs
-            weight_grad_cost_collision: float,
-            weight_grad_cost_smoothness: float,
-            weight_grad_cost_constraints: float,
-            weight_grad_cost_soft_constraints: float,
-            factor_num_interpolated_points_for_collision: float,
             trajectory_duration: float,
             device: str,
             debug: bool,
             seed: int,
             results_dir: str,
-            trained_models_dir: str,
             n_samples: int,
+
+            # those are not used in mdoc now but we keep them here to align with mmd
+            use_guide_on_extra_objects_only: bool,
+            start_guide_steps_fraction: float,
+            n_guide_steps: int,
+            n_diffusion_steps_without_noise: int,
+            weight_grad_cost_collision: float,
+            weight_grad_cost_smoothness: float,
+            weight_grad_cost_constraints: float,
+            weight_grad_cost_soft_constraints: float,
+            factor_num_interpolated_points_for_collision: float,
             n_local_inference_noising_steps: int,
             n_local_inference_denoising_steps: int,
-
-            # mdoc settings
-            dynamics_model: Optional = None,
-            receding_horizon: Optional[int] = None,
-            use_soft_sphere_constraints: bool = True,
-            sphere_constraint_radius: float = 0.15,
-            mdoc_score_monte_carlo_samples: int = 64,
             **kwargs
     ):
         super().__init__()
@@ -137,7 +127,11 @@ class MDOCEnsemble(SingleAgentPlanner):
             dt = trajectory_duration / n_support_points  # time interval for finite differences
             robot.dt = dt
 
-            model_class = getattr(environments, model_id.split("-")[0])
+            env_name = model_id.split("-")[0]
+            if "random" in env_name.lower():
+                env_name += 'Fixed'
+
+            model_class = getattr(environments, env_name)
             model = model_class(tensor_args=tensor_args)
             self.models[j] = model
             self.robots[j] = robot
@@ -218,8 +212,8 @@ class MDOCEnsemble(SingleAgentPlanner):
                                               tensor_args=tensor_args)
 
         if start_state_pos is not None and goal_state_pos is not None:
-            print(f'start_state_pos: {start_state_pos}')
-            print(f'goal_state_pos: {goal_state_pos}')
+            print(f'[MDOC] start_state_pos: {start_state_pos}')
+            print(f'[MDOC] goal_state_pos: {goal_state_pos}')
         else:
             # Random initial and final positions
             n_tries = 100
@@ -254,7 +248,7 @@ class MDOCEnsemble(SingleAgentPlanner):
             hard_conds[len(model_ids) - 1] = goal_state_hard_cond
 
         self.transforms = transforms
-        self.model = ModelBasedDiffusionEnsemble(self.robot, self.models, transforms, start_state_pos, goal_state_pos, device=device)
+        self.model = ModelBasedDiffusionEnsemble(self.robot, self.models, transforms, start_state_pos, goal_state_pos, device=device, seed=seed)
 
         # cross conditioning
         self.cross_conds = {}
@@ -347,23 +341,6 @@ class MDOCEnsemble(SingleAgentPlanner):
             trajs_iters, trajs_final, trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs = (
                 self.task.get_traj_unnormalized(model_index, self.datasets, trajs_normalized_iters))
 
-
-
-            # planner_visualizer = PlanningVisualizer(task=self.task)
-            # planner_visualizer.render_robot_trajectories(
-            #     trajs=trajs_final, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
-            #     render_planner=False,
-            # )
-            # plt.show()
-            import random
-            # planner_visualizer.animate_robot_trajectories(
-            #     trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
-            #     plot_trajs=True,
-            #     video_filepath=f'results/robot-traj_{random.randint(50, 100)}.gif',
-            #     n_frames=trajs_final.shape[0],
-            #     anim_time=5.0
-            # )
-
             results_ensemble[model_index] = self.task.get_stats(model_index, trajs_iters, trajs_final,
                                                                 trajs_final_coll,
                                                                 trajs_final_coll_idxs, trajs_final_free,
@@ -402,8 +379,8 @@ class MDOCEnsemble(SingleAgentPlanner):
         self.recent_call_data.constraints_l = constraints_l
 
         # Smooth the trajectories in trajs_final.
-        if self.recent_call_data.trajs_final is not None:
-            self.recent_call_data.trajs_final = smooth_trajs(self.recent_call_data.trajs_final)
+        # if self.recent_call_data.trajs_final is not None:
+        #     self.recent_call_data.trajs_final = smooth_trajs(self.recent_call_data.trajs_final)
 
         return self.recent_call_data
 
@@ -549,8 +526,7 @@ class MDOCEnsemble(SingleAgentPlanner):
 
         return trajs_normalized_iters_dict, t_model_sampling, t_post_diffusion_guide
 
-    def run_constrained_local_inference(self, cost_constraints_l: List[CostConstraint],
-                                        experience: PathBatchExperience):
+    def run_constrained_local_inference(self, cost_constraints_l: List[CostConstraint], experience: PathBatchExperience):
         task_id_to_cost_constraints_l = self.split_cost_constraints_to_tasks(cost_constraints_l)
 
         for task_id, cost_constraints_l in task_id_to_cost_constraints_l.items():

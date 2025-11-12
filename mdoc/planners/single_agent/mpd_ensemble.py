@@ -403,8 +403,8 @@ class MPDEnsemble(SingleAgentPlanner):
         self.recent_call_data.constraints_l = constraints_l
 
         # Smooth the trajectories in trajs_final.
-        if self.recent_call_data.trajs_final is not None:
-            self.recent_call_data.trajs_final = smooth_trajs(self.recent_call_data.trajs_final)
+        # if self.recent_call_data.trajs_final is not None:
+        #     self.recent_call_data.trajs_final = smooth_trajs(self.recent_call_data.trajs_final)
 
         return self.recent_call_data
 

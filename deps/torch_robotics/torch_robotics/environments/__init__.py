@@ -15,6 +15,7 @@ from .env_empty_nowait_2d import *
 from .env_empty_nowait_2d_extra_objects import *
 # add for mdoc experiment
 from .env_random_2d import *
+from .env_random_2d_extra_objects import *
 from .env_random_dense_2d import *
 from .env_random_large_2d import *
 from .env_random_extra_large_2d import *

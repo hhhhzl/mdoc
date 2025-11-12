@@ -9,30 +9,44 @@ class MDOCParams:
     horizon = 64  # Number of steps in the trajectory.
     device = 'cpu'
     debug = True
-    seed = 18
-
+    seed = 42
     # Single-agent planning parameters.
-    temp_sample = 0.5
-    n_diffusion_steps = 100
+    temp_sample = 0.1
+    n_diffusion_steps = 200
     beta0 = 1e-5
     betaT = 1e-2
+    # CBF
+    cbf_tau = 0.05
+    cbf_eta = 0.8
+    cbf_margin = 0.02
+    constraints_to_check = 15 if device == 'cpu' else 50
+    k_best = 2
+    base_beta = 0.05
+    # Cost Function
+    cost_control = 1
+    cost_distance_to_goal = 5
+    cost_time_smoothness = 1
+    cost_acc_smoothness = 1
+    cost_get_to_goal_early = 0.5
+    cost_sdf_collison = 5000
+    cost_terminal = 8
+    projection_score_weight = 0.9
 
-    projection_score_weight = 0.8
-    cost_target = 8.0
+    # runtime
+    compile = True
+    use_cuda_graph = False if device == 'cpu' else True
 
     # Torch.
     tensor_args = {'device': device, 'dtype': torch.float32}
-
     # Multi-agent planning parameters.
     vertex_constraint_radius = robot_planar_disk_radius * 2.4
     low_level_choose_path_from_batch_strategy = 'least_collisions'  # 'least_collisions' or 'least_cost'.
-
     # Evaluation.
     runtime_limit = 1000  # 1000 second.
     data_adherence_linear_deviation_fraction = 0.1  # Points closer to start-goal line than fraction * length adhere.
     results_dir = 'logs'
 
-    # those are not used in mdoc now but we keep them here to align with mmd
+    # ======= those are not actually used in mdoc now, but we keep them here to align with mmd ===============
     use_guide_on_extra_objects_only = False
     n_local_inference_noising_steps = 3  # Number of noising steps in local inference.
     n_local_inference_denoising_steps = 3  # Number of denoising steps in local inference.

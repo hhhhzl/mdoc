@@ -12,6 +12,7 @@ from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 from mdoc.config.mmd_params import MMDParams as params
 
+
 class EnvRandomDense2D(EnvBase):
 
     def __init__(self,
@@ -159,7 +160,8 @@ class EnvRandomDense2D(EnvBase):
     def get_skill_pos_seq_l(self, robot=None, start_pos=None, goal_pos=None) -> List[torch.Tensor]:
         return None
 
-    def compute_traj_data_adherence(self, path: torch.Tensor, fraction_of_length=params.data_adherence_linear_deviation_fraction) -> torch.Tensor:
+    def compute_traj_data_adherence(self, path: torch.Tensor,
+                                    fraction_of_length=params.data_adherence_linear_deviation_fraction) -> torch.Tensor:
         # The score is deviation of the path from a straight line. Cost in {0, 1}.
         # The score is 1 for each point on the path within a distance less than fraction_of_length * length from
         # the straight line. The computation is the average of the scores for all points in the path.
@@ -168,8 +170,10 @@ class EnvRandomDense2D(EnvBase):
         length = torch.norm(goal_state_pos - start_state_pos)
         path = path[:, :2]
         path = torch.stack([path[:, 0], path[:, 1], torch.zeros_like(path[:, 0])], dim=1)
-        start_state_pos = torch.stack([start_state_pos[0], start_state_pos[1], torch.zeros_like(start_state_pos[0])]).unsqueeze(0)
-        goal_state_pos = torch.stack([goal_state_pos[0], goal_state_pos[1], torch.zeros_like(goal_state_pos[0])]).unsqueeze(0)
+        start_state_pos = torch.stack(
+            [start_state_pos[0], start_state_pos[1], torch.zeros_like(start_state_pos[0])]).unsqueeze(0)
+        goal_state_pos = torch.stack(
+            [goal_state_pos[0], goal_state_pos[1], torch.zeros_like(goal_state_pos[0])]).unsqueeze(0)
         deviation_from_line = torch.norm(torch.cross(goal_state_pos - start_state_pos, path - start_state_pos),
                                          dim=1) / length
         return (deviation_from_line < fraction_of_length).float().mean().item()

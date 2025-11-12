@@ -39,69 +39,6 @@ def _histogram_smooth(xy, bounds, bins=120, ksize=9, sigma=2.0):
     return out, Xc, Yc
 
 
-# def plot_overlay(env, endpoints_dict, ws_limits, start, goal, save_path):
-#     """
-#     Overlayed iso-density contours (single axes) per method with a shared contour level."""
-#     # compute densities
-#     densities = {}
-#     fields = {}
-#     bounds = ws_limits
-#
-#     stack_list = []
-#     for name, pts in endpoints_dict.items():
-#         H, Xc, Yc = _histogram_smooth(pts, bounds=bounds, bins=100, ksize=9, sigma=2.0)
-#         densities[name] = H
-#         fields[name] = (Xc, Yc)
-#         stack_list.append(H)
-#     if not stack_list:
-#         raise RuntimeError("No endpoints to plot. Provide at least one method's endpoints.")
-#
-#     stack = np.stack(stack_list, axis=0)
-#     level = np.percentile(stack, 92.0)  # shared isodensity level
-#
-#     # set up figure
-#     fig, ax = create_fig_and_axes(env.dim)
-#     env.render(ax)
-#
-#     # ax = plt.gca()
-#     (xmin, ymin), (xmax, ymax) = ws_limits
-#     ax.set_xlim(xmin, xmax)
-#     ax.set_ylim(ymin, ymax)
-#     ax.set_aspect('equal', adjustable='box')
-#     ax.set_title('Fig.4 (Scheme B)  Overlayed Isodensity Contours in a Narrow Passage')
-#
-#     # draw contours with distinct linestyles (no explicit colors)
-#     styles = {
-#         'mppi': '--',
-#         'cem': '-.',
-#         'mdoc': '-'
-#     }
-#     legend_elems = []
-#     for name, H in densities.items():
-#         Xc, Yc = fields[name]
-#         ls = styles.get(name, '-')
-#         ax.contour(Xc, Yc, H, levels=[level], linewidths=2, linestyles=ls)
-#
-#     # Start / Goal
-#     ax.scatter([start[0]], [start[1]], s=80, marker='>')
-#     ax.scatter([goal[0]], [goal[1]], s=80, marker='*')
-#
-#     # pass-through estimation (for symmetric bottleneck: x > 0 means passed)
-#     for name, pts in endpoints_dict.items():
-#         pass_rate = float((pts[:, 0] > 0.0).mean() * 100.0)
-#         legend_elems.append(Line2D([0], [0], linestyle=styles.get(name, '-'), linewidth=2,
-#                                    label=f"{name} (pass {pass_rate:.1f}%)"))
-#     legend_elems.append(Line2D([0], [0], marker='>', linestyle='', label='Start'))
-#     legend_elems.append(Line2D([0], [0], marker='*', linestyle='', label='Goal'))
-#     ax.legend(handles=legend_elems, loc='lower right')
-#     plt.grid(True, alpha=0.4)
-#     plt.tight_layout()
-#     os.makedirs(Path(save_path).parent, exist_ok=True)
-#     plt.savefig(save_path, dpi=200, bbox_inches='tight')
-#     print(f"[Saved] {save_path}")
-#     return fig
-
-
 def plot_paths(
         task,
         env,
@@ -123,13 +60,12 @@ def plot_paths(
     # Add batch dimension to all paths.
     # paths_l = [path.unsqueeze(0) for path in paths_l]
     fig, ax = create_fig_and_axes(env.dim)
-    env.render(ax)
-
+    env.render(ax=ax, object_c='#B0B0B0')
     for index, method in enumerate(list(path_dict.keys())):
         fig, ax = planner_visualizer.render_robot_trajectories(
             fig=fig,
             ax=ax,
-            trajs=smooth_trajs(path_dict[method]) if method != "rrt*" else path_dict[method],
+            trajs=smooth_trajs(path_dict[method]),
             start_state=start,
             goal_state=goal,
             colors=[colors[method]],
@@ -142,7 +78,7 @@ def plot_paths(
         mpatches.Patch(color=colors[method], label=method.upper())
         for method in path_dict.keys()
     ]
-    ax.legend(handles=handles, loc='upper left', fontsize=18)
+    ax.legend(handles=handles, loc='lower right', fontsize=18)
 
     os.makedirs(Path(save_path).parent, exist_ok=True)
     if not save_path.endswith('.png'):
@@ -175,6 +111,29 @@ def _alpha_colormap(base_cmap, high_alpha=0.88, low_alpha=0.0):
     return ListedColormap(colors)
 
 
+def print_overlay(
+    endpoints_dict,
+    stats_dict=None,
+):
+    results = {}
+    for raw_name, pts in endpoints_dict.items():
+        name = raw_name.lower()
+        summary = {}
+        if pts is not None and len(pts) > 0:
+            pass_given_free = float((pts[:, 0] > 0.0).mean() * 100.0)
+        else:
+            pass_given_free = 0.0
+        summary["pass_given_free"] = pass_given_free
+        if stats_dict is not None:
+            stats = stats_dict.get(name)
+            if stats is not None:
+                summary.update(stats)
+        results[name] = summary
+
+    print(results)
+
+
+
 def plot_overlay(
         env,
         endpoints_dict,
@@ -203,7 +162,7 @@ def plot_overlay(
         return float(r), float(g), float(b), float(a)
 
     line_color = colors
-    styles = {'mppi': '-', 'cem': '-', 'mdoc': '-'}
+    styles = {'mppi': '-', 'cem': '-', 'mdoc': '-', 'rrt*': '-'}
     densities, fields, stack_list, names = {}, {}, [], []
     for raw_name, pts in endpoints_dict.items():
         name = raw_name.lower()

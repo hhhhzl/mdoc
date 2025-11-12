@@ -36,8 +36,8 @@ class PlanningVisualizer:
         self.robot = self.task.robot
         self.planner = planner
 
-        # self.colors = {'collision': 'black', 'free': 'cornsilk'}
-        self.colors = {'collision': 'black', 'free': 'lightcyan'}
+        self.colors = {'collision': 'black', 'free': '#1f77b4'}
+        # self.colors = {'collision': 'black', 'free': 'lightcyan'}
         self.colors_robot = {'collision': 'black', 'free': 'darkorange'}
         self.cmaps = {'collision': 'Greys', 'free': 'Oranges'}
         self.cmaps_robot = {'collision': 'Greys', 'free': 'YlOrRd'}

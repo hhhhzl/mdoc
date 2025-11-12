@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-
+import math
 
 def smooth_weight(
         step: int, total_steps: int,
@@ -10,7 +10,7 @@ def smooth_weight(
 ):
     step = max(0, min(step, total_steps))
     if schedule == "cosine":
-        alpha = 0.5 * (1.0 + torch.cos(torch.tensor(step / total_steps * 3.1415926535)))
+        alpha = 0.5 * (1.0 + torch.cos(torch.tensor(step / total_steps * math.pi)))
         w = end + (start - end) * alpha
     elif schedule == "poly":
         gamma = 2.0
