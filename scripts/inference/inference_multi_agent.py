@@ -439,7 +439,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='WAStar',
+        default='KCBSLower',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -473,7 +473,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvRandomDense2D-RobotPlanarDisk',
+        default='EnvEmpty2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -520,7 +520,7 @@ def parse_args():
     parser.add_argument(
         '--start_goal_setup',
         type=str,
-        default='random',
+        default='circle',
         choices=[
             'boundary',
             'circle',
@@ -581,7 +581,7 @@ if __name__ == '__main__':
         elif args.start_goal_setup == "random":
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_random_in_env(
-                    env_class=EnvRandomDense2DFixed,
+                    env_class=EnvEmpty2D,
                     num_agents=config.num_agents,
                     tensor_args=tensor_args,
                     obstacle_margin=0.15,
