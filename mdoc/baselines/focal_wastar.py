@@ -184,10 +184,10 @@ class WAStar:
             self.is_collision_map[tuple(q_int)] = torch.any(self.task.compute_collision(q))
 
         # Check the validity of the start and goal.
-        if not self.is_state_to_state_valid(self.q_start, 0, self.q_start, 0):
-            raise ValueError("Start state is not valid.")
-        if not self.is_state_to_state_valid(self.q_goal, 0, self.q_goal, 0):
-            raise ValueError("Goal state is not valid.")
+        # if not self.is_state_to_state_valid(self.q_start, 0, self.q_start, 0):
+        #     raise ValueError("Start state is not valid.")
+        # if not self.is_state_to_state_valid(self.q_goal, 0, self.q_goal, 0):
+        #     raise ValueError("Goal state is not valid.")
 
         # Create a backwards-dijkstra heuristic.
         cell_heuristic = {}

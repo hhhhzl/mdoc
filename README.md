@@ -17,7 +17,7 @@ Model-Based Diffusion Optimal Control in Multi-Robot Motion Planning
   - pytorch == 2.1.0
   - MacOS mps chips (Not recommend)
 ```
-cd scripts/bash && ./setup.sh
+./scripts/bash/setup.sh
 ```
 ## Planning with MDOC
 

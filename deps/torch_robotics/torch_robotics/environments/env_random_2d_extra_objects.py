@@ -5,7 +5,7 @@ from torch.autograd.functional import jacobian
 
 # Project includes.
 from torch_robotics.environments.env_random_2d_fixed import EnvRandom2DFixed
-from torch_robotics.environments.env_random_dense_2d import EnvRandomDense2D
+from torch_robotics.environments.env_random_dense_2d_fixed import EnvRandomDense2DFixed
 from torch_robotics.environments.env_random_large_2d import EnvRandomLarge2D
 from torch_robotics.environments.env_random_extra_large_2d import EnvRandomExtraLarge2D
 from torch_robotics.environments.primitives import ObjectField, MultiSphereField, MultiBoxField
@@ -46,7 +46,7 @@ class EnvRandom2DExtraObjects(EnvRandom2DFixed):
         )
 
 
-class EnvRandomDense2DExtraObjects(EnvRandomDense2D):
+class EnvRandomDense2DExtraObjects(EnvRandomDense2DFixed):
     def __init__(self, tensor_args=None, **kwargs):
         obj_extra_list = [
             MultiSphereField(
@@ -77,6 +77,7 @@ class EnvRandomDense2DExtraObjects(EnvRandomDense2D):
             tensor_args=tensor_args,
             **kwargs
         )
+
 
 class EnvRandomLarge2DExtraObjects(EnvRandomLarge2D):
     def __init__(self, tensor_args=None, **kwargs):
@@ -109,6 +110,7 @@ class EnvRandomLarge2DExtraObjects(EnvRandomLarge2D):
             tensor_args=tensor_args,
             **kwargs
         )
+
 
 class EnvRandomExtraLarge2DExtraObjects(EnvRandomExtraLarge2D):
     def __init__(self, tensor_args=None, **kwargs):

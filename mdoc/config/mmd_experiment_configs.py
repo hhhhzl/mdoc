@@ -27,7 +27,7 @@ import numpy as np
 import torch
 
 # Project imports.
-from mdoc.config.mmd_params import MMDParams as params
+from mdoc.config.mdoc_params import MDOCParams as params
 from mdoc.common.multi_agent_utils import *
 from torch_robotics.environments import *
 from torch_robotics.environments.env_highways_2d import EnvHighways2D
@@ -55,7 +55,7 @@ class EnvEmpty2DRobotPlanarDiskCircle(MMDPlanningProblemConfig):
         self.name = "EnvEmpty2D_RobotPlanarDisk_Circle"
 
     def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(num_agents, radius=0.8)
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(num_agents, radius=0.8, device=params.device)
         global_model_ids = [['EnvEmpty2D-RobotPlanarDisk']]
         agent_skeleton_l = [[[0, 0]]] * num_agents
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
@@ -75,6 +75,140 @@ class EnvEmpty2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
 
 
+class EnvEmpty2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvEmpty2D_RobotPlanarDisk_Circle"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents, dist=0.87, device=params.device)
+        global_model_ids = [['EnvEmpty2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvConveyor2DRobotPlanarDiskCircle(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvConveyor2D_RobotPlanarDisk_Circle"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(num_agents, radius=0.8, device=params.device)
+        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvConveyor2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvConveyor2D_RobotPlanarDisk_Boundary"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents, dist=0.87, device=params.device)
+        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvConveyor2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvConveyor2D_RobotPlanarDisk_Random"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
+                                                                               env_class=EnvConveyor2D,
+                                                                               tensor_args=params.tensor_args,
+                                                                               margin=0.15)
+        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvRandom2DRobotPlanarDisk(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvRandom2D_RobotPlanarDisk"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
+                                                                               env_class=EnvRandom2DFixed,
+                                                                               tensor_args=params.tensor_args,
+                                                                               margin=0.15)
+        global_model_ids = [['EnvRandom2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvRandomDense2DRobotPlanarDisk(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvRandomDense2D_RobotPlanarDisk"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
+                                                                               env_class=EnvRandomDense2DFixed,
+                                                                               tensor_args=params.tensor_args,
+                                                                               margin=0.15)
+        global_model_ids = [['EnvRandomDense2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvRandomLarge2DRobotPlanarDisk(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvRandomLarge2D_RobotPlanarDisk"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
+                                                                               env_class=EnvRandomLarge2DFixed,
+                                                                               tensor_args=params.tensor_args,
+                                                                               margin=0.15)
+        global_model_ids = [['EnvRandomLarge2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvRandomExtraLarge2DRobotPlanarDisk(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvRandomExtraLarge2D_RobotPlanarDisk"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
+                                                                               env_class=EnvRandomExtraLarge2DFixed,
+                                                                               tensor_args=params.tensor_args,
+                                                                               margin=0.15)
+        global_model_ids = [['EnvRandomExtraLarge2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvDropRegion2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvDropRegion2D_RobotPlanarDisk_Random"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
+                                                                               env_class=EnvDropRegion2D,
+                                                                               tensor_args=params.tensor_args,
+                                                                               margin=0.15)
+        global_model_ids = [['EnvDropRegion2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
+class EnvHighways2DRobotPlanarDiskSmallCircle(MMDPlanningProblemConfig):
+    def __init__(self):
+        self.name = "EnvHighways2D_RobotPlanarDisk_SmallCircle"
+
+    def get_planning_problem(self, num_agents):
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(min(num_agents, 10), radius=0.45,
+                                                                        device=params.device)
+        if num_agents > 10:
+            more_start_state_pos_l, more_goal_state_pos_l = get_start_goal_pos_circle(num_agents - 10, radius=0.65)
+            start_state_pos_l += more_start_state_pos_l
+            goal_state_pos_l += more_goal_state_pos_l
+
+        global_model_ids = [['EnvHighways2D-RobotPlanarDisk']]
+        agent_skeleton_l = [[[0, 0]]] * num_agents
+        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
+
+
 class EnvHighways2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
     def __init__(self):
         self.name = "EnvHighways2D_RobotPlanarDisk_Random"
@@ -89,89 +223,12 @@ class EnvHighways2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
 
 
-class EnvEmpty2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
-    def __init__(self):
-        self.name = "EnvEmpty2D_RobotPlanarDisk_Circle"
-
-    def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents, dist=0.87)
-        global_model_ids = [['EnvEmpty2D-RobotPlanarDisk']]
-        agent_skeleton_l = [[[0, 0]]] * num_agents
-        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
-
-
-class EnvConveyor2DRobotPlanarDiskCircle(MMDPlanningProblemConfig):
-    def __init__(self):
-        self.name = "EnvConveyor2D_RobotPlanarDisk_Circle"
-
-    def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(num_agents, radius=0.8)
-        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
-        agent_skeleton_l = [[[0, 0]]] * num_agents
-        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
-
-class EnvConveyor2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
-    def __init__(self):
-        self.name = "EnvConveyor2D_RobotPlanarDisk_Boundary"
-
-    def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents, dist=0.87)
-        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
-        agent_skeleton_l = [[[0, 0]]] * num_agents
-        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
-
-
-class EnvConveyor2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
-    def __init__(self):
-        self.name = "EnvConveyor2D_RobotPlanarDisk_Random"
-
-    def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
-                                                                                 env_class=EnvConveyor2D,
-                                                                                 tensor_args=params.tensor_args,
-                                                                                 margin=0.15)
-        global_model_ids = [['EnvConveyor2D-RobotPlanarDisk']]
-        agent_skeleton_l = [[[0, 0]]] * num_agents
-        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
-
-
-class EnvDropRegion2DRobotPlanarDiskRandom(MMDPlanningProblemConfig):
-    def __init__(self):
-        self.name = "EnvDropRegion2D_RobotPlanarDisk_Random"
-
-    def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_random_in_env(num_agents=num_agents,
-                                                                                 env_class=EnvDropRegion2D,
-                                                                                 tensor_args=params.tensor_args,
-                                                                                 margin=0.15)
-        global_model_ids = [['EnvDropRegion2D-RobotPlanarDisk']]
-        agent_skeleton_l = [[[0, 0]]] * num_agents
-        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
-
-
-class EnvHighways2DRobotPlanarDiskSmallCircle(MMDPlanningProblemConfig):
-    def __init__(self):
-        self.name = "EnvHighways2D_RobotPlanarDisk_SmallCircle"
-
-    def get_planning_problem(self, num_agents):
-
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(min(num_agents, 10), radius=0.45)
-        if num_agents > 10:
-            more_start_state_pos_l, more_goal_state_pos_l = get_start_goal_pos_circle(num_agents - 10, radius=0.65)
-            start_state_pos_l += more_start_state_pos_l
-            goal_state_pos_l += more_goal_state_pos_l
-
-        global_model_ids = [['EnvHighways2D-RobotPlanarDisk']]
-        agent_skeleton_l = [[[0, 0]]] * num_agents
-        return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
-
-
 class EnvDropRegion2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
     def __init__(self):
         self.name = "EnvDropRegion2D_RobotPlanarDisk_Boundary"
 
     def get_planning_problem(self, num_agents):
-        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents)
+        start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents, device=params.device)
         global_model_ids = [['EnvDropRegion2D-RobotPlanarDisk']]
         agent_skeleton_l = [[[0, 0]]] * num_agents
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
@@ -180,8 +237,8 @@ class EnvDropRegion2DRobotPlanarDiskBoundary(MMDPlanningProblemConfig):
 class EnvTestTwoByTwoRobotPlanarDiskRandom(MMDPlanningProblemConfig):
     def __init__(self):
         self.name = "EnvTestTwoByTwo_RobotPlanarDisk_Random"
-        self.start_state_pos_l, self.goal_state_pos_l = get_start_goal_pos_circle(10, radius=0.45)
-        more_start_state_pos_l, more_goal_state_pos_l = get_start_goal_pos_circle(20, radius=0.65)
+        self.start_state_pos_l, self.goal_state_pos_l = get_start_goal_pos_circle(10, radius=0.45, device=params.device)
+        more_start_state_pos_l, more_goal_state_pos_l = get_start_goal_pos_circle(20, radius=0.65, device=params.device)
         self.start_state_pos_l += more_start_state_pos_l
         self.goal_state_pos_l += more_goal_state_pos_l
 
@@ -234,14 +291,15 @@ class EnvTestTwoByTwoRobotPlanarDiskRandom(MMDPlanningProblemConfig):
 class EnvTestThreeByThreeRobotPlanarDiskRandom(MMDPlanningProblemConfig):
     def __init__(self):
         self.name = "EnvTestThreeByThree_RobotPlanarDisk_Random"
-        self.start_state_pos_l, self.goal_state_pos_l = get_start_goal_pos_circle(10, radius=0.45)
-        more_start_state_pos_l, more_goal_state_pos_l = get_start_goal_pos_circle(20, radius=0.65)
+        self.start_state_pos_l, self.goal_state_pos_l = get_start_goal_pos_circle(10, radius=0.45, device=params.device)
+        more_start_state_pos_l, more_goal_state_pos_l = get_start_goal_pos_circle(20, radius=0.65, device=params.device)
         self.start_state_pos_l += more_start_state_pos_l
         self.goal_state_pos_l += more_goal_state_pos_l
 
-        self.global_model_ids = [['EnvEmptyNoWait2D-RobotPlanarDisk', 'EnvConveyor2D-RobotPlanarDisk', 'EnvDropRegion2D-RobotPlanarDisk'],
-                                 ['EnvHighways2D-RobotPlanarDisk', 'EnvHighways2D-RobotPlanarDisk', 'EnvHighways2D-RobotPlanarDisk'],
-                                 ['EnvConveyor2D-RobotPlanarDisk', 'EnvDropRegion2D-RobotPlanarDisk', 'EnvEmptyNoWait2D-RobotPlanarDisk']]
+        self.global_model_ids = [
+            ['EnvEmptyNoWait2D-RobotPlanarDisk', 'EnvConveyor2D-RobotPlanarDisk', 'EnvDropRegion2D-RobotPlanarDisk'],
+            ['EnvHighways2D-RobotPlanarDisk', 'EnvHighways2D-RobotPlanarDisk', 'EnvHighways2D-RobotPlanarDisk'],
+            ['EnvConveyor2D-RobotPlanarDisk', 'EnvDropRegion2D-RobotPlanarDisk', 'EnvEmptyNoWait2D-RobotPlanarDisk']]
         self.agent_skeleton_options = [[[1, 1], [2, 1], [2, 2]],
                                        [[1, 2], [1, 1], [1, 2]],
                                        [[1, 1], [1, 2], [1, 1]],

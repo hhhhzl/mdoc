@@ -414,7 +414,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=5,
+        default=3,
         help='Number of agents'
     )
     parser.add_argument(
@@ -439,7 +439,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='MMDEnsemble',
+        default='WAStar',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -473,7 +473,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvConveyor2D-RobotPlanarDisk',
+        default='EnvRandomDense2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -520,7 +520,7 @@ def parse_args():
     parser.add_argument(
         '--start_goal_setup',
         type=str,
-        default='circle',
+        default='random',
         choices=[
             'boundary',
             'circle',
@@ -579,17 +579,15 @@ if __name__ == '__main__':
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_circle(config.num_agents, 0.8, device)
         elif args.start_goal_setup == "random":
-            env = EnvRandom2DFixed(tensor_args=tensor_args)
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_random_in_env(
-                    env_class=env,
+                    env_class=EnvRandomDense2DFixed,
                     num_agents=config.num_agents,
                     tensor_args=tensor_args,
                     obstacle_margin=0.15,
-                    margin=0.25,
-                    reload_env=False
+                    margin=0.15,
                 )
-            # config.start_state_pos_l, config.goal_state_pos_l = torch.tensor([-0.2226,  0.8727], **tensor_args), torch.tensor([0.8257, 0.1778], **tensor_args)
+            print(config.start_state_pos_l, config.goal_state_pos_l)
         else:
             RuntimeError("No such choice")
 
