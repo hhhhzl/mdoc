@@ -87,16 +87,52 @@ class TrajectoryDatasetBase(Dataset, abc.ABC):
         n_trajs = 0
         for current_dir, subdirs, files in os.walk(self.base_dir, topdown=True):
             if 'trajs-free.pt' in files:
-                trajs_free_tmp = torch.load(
-                    os.path.join(current_dir, 'trajs-free.pt'), map_location=self.tensor_args['device'])
-                trajectories_idx = n_trajs + np.arange(len(trajs_free_tmp))
-                self.map_task_id_to_trajectories_id[task_id] = trajectories_idx
-                for j in trajectories_idx:
-                    self.map_trajectory_id_to_task_id[j] = task_id
-                task_id += 1
-                n_trajs += len(trajs_free_tmp)
-                trajs_free_l.append(trajs_free_tmp)
+                traj_file_path = os.path.join(current_dir, 'trajs-free.pt')
+                try:
+                    # Check if file exists and has content
+                    if not os.path.exists(traj_file_path):
+                        print(f"Warning: File does not exist: {traj_file_path}")
+                        continue
+                    
+                    file_size = os.path.getsize(traj_file_path)
+                    if file_size == 0:
+                        print(f"Warning: File is empty: {traj_file_path}")
+                        continue
+                    
+                    trajs_free_tmp = torch.load(
+                        traj_file_path, map_location=self.tensor_args['device'])
+                    
+                    if trajs_free_tmp is None or len(trajs_free_tmp) == 0:
+                        print(f"Warning: No trajectories loaded from: {traj_file_path}")
+                        continue
+                    
+                    trajectories_idx = n_trajs + np.arange(len(trajs_free_tmp))
+                    self.map_task_id_to_trajectories_id[task_id] = trajectories_idx
+                    for j in trajectories_idx:
+                        self.map_trajectory_id_to_task_id[j] = task_id
+                    task_id += 1
+                    n_trajs += len(trajs_free_tmp)
+                    trajs_free_l.append(trajs_free_tmp)
+                except EOFError as e:
+                    file_size = os.path.getsize(traj_file_path) if os.path.exists(traj_file_path) else 0
+                    print(f"Error: Corrupted or incomplete file (EOFError): {traj_file_path}")
+                    print(f"  File size: {file_size} bytes")
+                    print(f"  This file will be skipped. You may need to regenerate it.")
+                    continue
+                except Exception as e:
+                    print(f"Error: Failed to load trajectory file: {traj_file_path}")
+                    print(f"  Error type: {type(e).__name__}")
+                    print(f"  Error message: {str(e)}")
+                    print(f"  This file will be skipped.")
+                    continue
 
+        if len(trajs_free_l) == 0:
+            raise RuntimeError(
+                f"No valid trajectory files found in {self.base_dir}. "
+                f"All trajectory files may be corrupted or missing. "
+                f"Please regenerate the trajectory data."
+            )
+        
         trajs_free = torch.cat(trajs_free_l)
         trajs_free_pos = self.robot.get_position(trajs_free)
 
