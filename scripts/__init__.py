@@ -9,6 +9,14 @@ class EnvironmentType(Enum):
     CONVEYOR_DISK_CIRCLE = 'EnvConveyor2DRobotPlanarDiskCircle'
     CONVEYOR_DISK_BOUNDARY = "EnvConveyor2DRobotPlanarDiskBoundary"
     CONVEYOR_DISK_RANDOM = "EnvConveyor2DRobotPlanarDiskRandom"
+
+    # Random
+    RANDOM_DISK_BASIC = "EnvRandom2DRobotPlanarDisk"
+    RANDOM_DISK_DENSE = "EnvRandomDense2DRobotPlanarDisk"
+    RANDOM_DISK_LARGE = "EnvRandomLarge2DRobotPlanarDisk"
+    RANDOM_DISK_EXTRA_LARGE = "EnvRandomExtraLarge2DRobotPlanarDisk"
+
+    # mmd maps
     HIGHWAYS_DISK_SMALL_CIRCLE = "EnvHighways2DRobotPlanarDiskSmallCircle"
     HIGHWAYS_DISK_RANDOM = "EnvHighways2DRobotPlanarDiskRandom"
     DROP_REGION_DISK_BOUNDARY = "EnvDropRegion2DRobotPlanarDiskBoundary"

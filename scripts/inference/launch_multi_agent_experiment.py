@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+        default=[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         help='List of number of agents to test'
     )
 
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default=EnvironmentType.EMPTY_DISK_CIRCLE.value,
+        default=EnvironmentType.RANDOM_DISK_DENSE.value,
         choices=EnvironmentType.choices(),
         help='Environment/instance to use for the experiment'
     )
@@ -57,7 +57,7 @@ def parse_args():
     parser.add_argument(
         '--lps',
         nargs='+',
-        default=[LowerPlannerMethodType.MMD.value],
+        default=[LowerPlannerMethodType.KCBS.value],
         choices=LowerPlannerMethodType.choices(),
         help='Single agent planner to use'
     )
@@ -121,6 +121,7 @@ if __name__ == "__main__":
     experiment_config = MultiAgentPlanningExperimentConfig()
 
     # Set the experiment config.
+    assert all(x > 1 for x in args.n), "Multi-agent experiment should have number of agents > 1"
     experiment_config.num_agents_l = args.n
     experiment_config.instance_name = EnvironmentType.from_string(args.e).value
     experiment_config.stagger_start_time_dt = args.st

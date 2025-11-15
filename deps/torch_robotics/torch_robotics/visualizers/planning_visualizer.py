@@ -204,7 +204,8 @@ class PlanningVisualizer:
                 for q in qs:
                     q_tail = []
                     for di in range(5):
-                        q_tail.append(trajs_selection[:, i - di, :].squeeze())
+                        if i - di >= 0:
+                            q_tail.append(trajs_selection[:, i - di, :].squeeze())
                     kwargs['q_tail'] = q_tail
                     self.robot.render(
                         ax, q=q,

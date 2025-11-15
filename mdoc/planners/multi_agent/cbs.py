@@ -307,7 +307,7 @@ class CBS:
                                                          self.goal_state_pos_l[i],
                                                          constraints_l=soft_constraint_l)
             # Check for planning failure in root creation.
-            if planner_output.trajs_final_free_idxs.shape[0] == 0:
+            if planner_output is None or planner_output.trajs_final_free_idxs.shape[0] == 0:
                 print("Failed to find valid paths in root CT node.")
                 success_status = TrialSuccessStatus.FAIL_NO_SOLUTION
                 state = root
@@ -416,7 +416,7 @@ class CBS:
                                                                 experience=agent_experience)
 
             # Check if the planner found a valid path.
-            if len(planner_output.trajs_final_free_idxs) == 0:
+            if planner_output is None or len(planner_output.trajs_final_free_idxs) == 0:
                 print(RED + 'Failed to find valid path in CT node.' + RESET)
                 return  # Skip this node.
 

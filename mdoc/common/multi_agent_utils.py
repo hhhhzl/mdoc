@@ -59,15 +59,21 @@ def is_multi_agent_start_goal_states_valid(reference_robot,
                                            is_enforce_min_dist: bool = True
                                            ) -> bool:
     if is_enforce_min_dist:
+        min_dist = 0.15
+        if hasattr(reference_robot, 'radius'):
+            min_dist = max(min_dist, 2.1 * reference_robot.radius)
+        else:
+            min_dist = max(min_dist, 2.1 * 0.05)
+
         for i in range(len(start_state_pos_l)):
             for j in range(i + 1, len(goal_state_pos_l)):
                 # Start-start.
-                if torch.norm(start_state_pos_l[i] - start_state_pos_l[j]) < 0.15:
+                if torch.norm(start_state_pos_l[i] - start_state_pos_l[j]) < min_dist:
                     print('Start-start failed with i:', i, 'j:', j, " distance:",
                           torch.norm(start_state_pos_l[i] - start_state_pos_l[j]))
                     return False
                 # Goal-goal.
-                if torch.norm(goal_state_pos_l[i] - goal_state_pos_l[j]) < 0.15:
+                if torch.norm(goal_state_pos_l[i] - goal_state_pos_l[j]) < min_dist:
                     print('Goal-goal failed with i:', i, 'j:', j, " distance:",
                           torch.norm(goal_state_pos_l[i] - goal_state_pos_l[j]))
                     return False
@@ -188,12 +194,27 @@ def get_start_goal_pos_random_in_env(num_agents,
                                      margin=0.15,
                                      obstacle_margin=0.16, # 0.08
                                      reload_env=True,
-                                     size=1
+                                     size=1,
+                                     robot_radius=None,
+                                     discretization=None  # for grid discretization (A*CBS)
                                      ):  # 0.08
     # In this map, agents can be place anywhere with x y in [-0.9, 0.9]. As long as they are not too close to
     # each other.
     start_state_pos_l = []
     goal_state_pos_l = []
+
+    if robot_radius is not None:
+        collision_margin = (robot_radius * 1.1) + 0.01
+        effective_obstacle_margin = obstacle_margin + collision_margin
+        
+        if discretization is not None:
+            max_grid_error = torch.norm(torch.tensor(discretization, **tensor_args)) / 2.0
+            effective_obstacle_margin = effective_obstacle_margin + max_grid_error
+        
+        effective_margin = max(margin, 2.1 * robot_radius)
+    else:
+        effective_obstacle_margin = obstacle_margin
+        effective_margin = margin
 
     if reload_env:
         # Get the obstacles in this map.
@@ -210,8 +231,13 @@ def get_start_goal_pos_random_in_env(num_agents,
         while True:
             random_state = torch.rand(1, 2) * (size * 2 - 0.1) - (size - 0.05)
             random_state = random_state.to(**tensor_args)
+            
+            if discretization is not None:
+                discretization_tensor = torch.tensor(discretization, **tensor_args)
+                random_state = torch.round(torch.round(random_state / discretization_tensor) * discretization_tensor, decimals=3)
+            
             # Check if the state is not in an obstacle.
-            if torch.all(env_sdf(random_state) > obstacle_margin):
+            if torch.all(env_sdf(random_state) > effective_obstacle_margin):
                 break
         # Now add more point. For each point, check if it is not too close to the previous points and not in an
         # obstacle.
@@ -220,9 +246,15 @@ def get_start_goal_pos_random_in_env(num_agents,
             while True:
                 new_state = torch.rand(1, 2) * (size * 2 - 0.1) - (size - 0.05)
                 new_state = new_state.to(**tensor_args)
+                
+                # for grid discretization (A*CBS)
+                if discretization is not None:
+                    discretization_tensor = torch.tensor(discretization, **tensor_args)
+                    new_state = torch.round(torch.round(new_state / discretization_tensor) * discretization_tensor, decimals=3)
+                
                 pairwise_distances = torch.sqrt(torch.sum((new_state - state_b) ** 2, dim=1))
                 # Check if the state is not in an obstacle.
-                if torch.all(env_sdf(new_state) > obstacle_margin) and torch.all(pairwise_distances > margin):
+                if torch.all(env_sdf(new_state) > effective_obstacle_margin) and torch.all(pairwise_distances > effective_margin):
                     break
             state_b = torch.cat([state_b, new_state], dim=0)
         if i == 0:
