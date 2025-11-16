@@ -1,3 +1,5 @@
+import pprint
+
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
@@ -12,10 +14,10 @@ from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 from mdoc.config.mmd_params import MMDParams as params
 
-class EnvRandomExtraLarge2D(EnvBase):
+class EnvRandomExtraLarge2DFixed(EnvBase):
 
     def __init__(self,
-                 name='EnvRandomExtraLarge2D',
+                 name='EnvRandomExtraLarge2DFixed',
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
@@ -40,52 +42,84 @@ class EnvRandomExtraLarge2D(EnvBase):
             tensor_args = get_default_tensor_args()
 
         if obj_list is None:
-            objs = []
-
-            # boxes — avoid boxes just placed
-            box_centers, box_sizes = (None, None)
-            if number_of_box > 0:
-                box_centers, box_sizes = sample_non_overlapping_boxes_2d(
-                    n_boxes=number_of_box,
-                    min_size=box_min_size,
-                    max_size=box_max_size,
-                    margin=box_margin,
-                    gap=box_gap,
-                    rng=np.random.default_rng(),
-                    map_size=2,
-                )
-                box_field = MultiBoxField(
-                    np.asarray(box_centers, dtype=float),
-                    np.asarray(box_sizes, dtype=float),
+            obj_list = [
+                MultiBoxField(
+                    np.array(
+                        [
+                            [-1.8197, -0.4398],
+                            [-0.3285, -1.2394],
+                            [-0.0587, 0.5872],
+                            [0.6212, 0.7320],
+                            [-0.2345, -0.0361],
+                            [-1.7220, -1.4796],
+                            [0.3117, -1.6534],
+                            [1.5027, 1.6888],
+                            [1.6869, 0.5000],
+                            [0.6249, 1.3617],
+                            [-1.3633, 1.0018],
+                            [-1.0088, 1.5406],
+                            [1.2093, -0.6437],
+                            [1.7025, -1.1562],
+                            [0.3725, -0.2169]
+                        ],
+                        dtype=float,
+                    ),
+                    np.array(
+                        [
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                        ],
+                        dtype=float,
+                    ),
                     tensor_args=tensor_args,
-                )
-                objs.append(box_field)
-
-            # spheres — avoid boxes just placed
-            if number_of_sphere > 0:
-                s_centers, s_radii = sample_non_overlapping_spheres_2d(
-                    n_spheres=number_of_sphere,
-                    r_min=sphere_r_min,
-                    r_max=sphere_r_max,
-                    margin=sphere_margin,
-                    gap=sphere_gap,
-                    rng=np.random.default_rng(),
-                    avoid_box_centers=box_centers,
-                    avoid_box_sizes=box_sizes,
-                    avoid_box_gap=avoid_box_gap,  # extra clearance to boxes if desired
-                    map_size=2,
-                )
-                spheres = MultiSphereField(
-                    np.asarray(s_centers, dtype=float),
-                    np.asarray(s_radii, dtype=float),
+                ),
+                MultiSphereField(
+                    np.array(
+                        [
+                            [-0.7536, 0.2521],
+                            [-0.1741, 1.3811],
+                            [-1.5806, 0.2639],
+                            [0.5783, -1.1451],
+                            [-1.2115, -0.2873],
+                            [-0.9469, -1.2365],
+                            [-0.8777, -0.7030],
+                            [1.3712, -1.7580],
+                            [-0.5544, 0.9253],
+                            [1.1060, -0.0870],
+                            [1.1688, 0.4752],
+                            [1.5930, 1.0206],
+                            [-1.2012, -1.7806],
+                            [1.7326, -0.0797],
+                            [-1.6595, 1.7708]
+                        ],
+                        dtype=float,
+                    ),
+                    np.array(
+                        [0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750],
+                        dtype=float,
+                    ),
                     tensor_args=tensor_args,
-                )
-                objs.append(spheres)
+                ),
+            ]
+        objs = obj_list
 
         super().__init__(
             name=name,
             limits=torch.tensor([[-3, -3], [3, 3]], **tensor_args),
-            obj_fixed_list=[ObjectField(objs if obj_list is None else obj_list, 'random2d')],
+            obj_fixed_list=[ObjectField(objs if obj_list is None else obj_list, 'randomextralarge2d')],
             precompute_sdf_obj_fixed=precompute_sdf_obj_fixed,
             sdf_cell_size=sdf_cell_size,
             tensor_args=tensor_args,
@@ -178,7 +212,7 @@ class EnvRandomExtraLarge2D(EnvBase):
 
 
 if __name__ == '__main__':
-    env_sparse = EnvRandomExtraLarge2D(
+    env_sparse = EnvRandomExtraLarge2DFixed(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),
@@ -187,3 +221,4 @@ if __name__ == '__main__':
     fig, ax = create_fig_and_axes(env_sparse.dim)
     env_sparse.render(ax)
     plt.show()
+    pprint.pprint(env_sparse.obj_fixed_list)

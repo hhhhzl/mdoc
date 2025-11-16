@@ -12,27 +12,27 @@ from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 from mdoc.config.mmd_params import MMDParams as params
 
-class EnvRandomExtraLarge2D(EnvBase):
+class EnvRandomLarge2DFixed(EnvBase):
 
     def __init__(self,
-                 name='EnvRandomExtraLarge2D',
+                 name='EnvRandomLarge2DFixed',
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
                  # boxes
-                 number_of_box=15,
+                 number_of_box=10,
                  box_min_size=0.15,
                  box_max_size=0.15,  # same => squares
-                 box_margin=0.1,
-                 box_gap=0.36,
+                 box_margin=0.3,
+                 box_gap=0.24,
                  # spheres
-                 number_of_sphere=15,
+                 number_of_sphere=10,
                  sphere_r_min=0.075,  # used by random
                  sphere_r_max=0.075,  # used by random
-                 sphere_margin=0.1,  # used by random
-                 sphere_gap=0.36,  # used by random
+                 sphere_margin=0.3,  # used by random
+                 sphere_gap=0.24,  # used by random
                  obj_list=None,
-                 avoid_box_gap=0.36,
+                 avoid_box_gap=0.24,
                  **kwargs):
 
         # Safe tensor_args
@@ -40,52 +40,69 @@ class EnvRandomExtraLarge2D(EnvBase):
             tensor_args = get_default_tensor_args()
 
         if obj_list is None:
-            objs = []
-
-            # boxes — avoid boxes just placed
-            box_centers, box_sizes = (None, None)
-            if number_of_box > 0:
-                box_centers, box_sizes = sample_non_overlapping_boxes_2d(
-                    n_boxes=number_of_box,
-                    min_size=box_min_size,
-                    max_size=box_max_size,
-                    margin=box_margin,
-                    gap=box_gap,
-                    rng=np.random.default_rng(),
-                    map_size=2,
-                )
-                box_field = MultiBoxField(
-                    np.asarray(box_centers, dtype=float),
-                    np.asarray(box_sizes, dtype=float),
+            obj_list = [
+                MultiBoxField(
+                    np.array(
+                        [
+                            [-0.5454, -1.3904],
+                            [-1.4327, 0.2811],
+                            [0.4524, 0.0137],
+                            [-0.7716, 1.0459],
+                            [1.2482, -0.2286],
+                            [1.2658, -1.0368],
+                            [-0.8418, 0.1461],
+                            [-0.2584, -0.2800],
+                            [1.2865, 1.2597],
+                            [-0.0961, -1.2109]
+                        ],
+                        dtype=float,
+                    ),
+                    np.array(
+                        [
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                            [0.1500, 0.1500],
+                        ],
+                        dtype=float,
+                    ),
                     tensor_args=tensor_args,
-                )
-                objs.append(box_field)
-
-            # spheres — avoid boxes just placed
-            if number_of_sphere > 0:
-                s_centers, s_radii = sample_non_overlapping_spheres_2d(
-                    n_spheres=number_of_sphere,
-                    r_min=sphere_r_min,
-                    r_max=sphere_r_max,
-                    margin=sphere_margin,
-                    gap=sphere_gap,
-                    rng=np.random.default_rng(),
-                    avoid_box_centers=box_centers,
-                    avoid_box_sizes=box_sizes,
-                    avoid_box_gap=avoid_box_gap,  # extra clearance to boxes if desired
-                    map_size=2,
-                )
-                spheres = MultiSphereField(
-                    np.asarray(s_centers, dtype=float),
-                    np.asarray(s_radii, dtype=float),
+                ),
+                MultiSphereField(
+                    np.array(
+                        [
+                            [-1.0433, -0.7442],
+                            [-0.9902, 0.6484],
+                            [0.1631, 1.1408],
+                            [-1.3477, 1.5412],
+                            [-0.8990, -0.2527],
+                            [-0.6449, -0.7384],
+                            [0.4346, -1.4180],
+                            [-1.1386, -1.4160],
+                            [0.2421, 1.6171],
+                            [0.9890, 0.8143]
+                        ],
+                        dtype=float,
+                    ),
+                    np.array(
+                        [0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750, 0.0750],
+                        dtype=float,
+                    ),
                     tensor_args=tensor_args,
-                )
-                objs.append(spheres)
+                ),
+            ]
+        objs = obj_list
 
         super().__init__(
             name=name,
-            limits=torch.tensor([[-3, -3], [3, 3]], **tensor_args),
-            obj_fixed_list=[ObjectField(objs if obj_list is None else obj_list, 'random2d')],
+            limits=torch.tensor([[-2, -2], [2, 2]], **tensor_args),
+            obj_fixed_list=[ObjectField(objs if obj_list is None else obj_list, 'randomlarge2d')],
             precompute_sdf_obj_fixed=precompute_sdf_obj_fixed,
             sdf_cell_size=sdf_cell_size,
             tensor_args=tensor_args,
@@ -178,7 +195,7 @@ class EnvRandomExtraLarge2D(EnvBase):
 
 
 if __name__ == '__main__':
-    env_sparse = EnvRandomExtraLarge2D(
+    env_sparse = EnvRandomLarge2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args(),

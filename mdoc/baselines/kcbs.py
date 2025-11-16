@@ -116,7 +116,7 @@ class RRTParams:
     goal_radius: float = 0.02
     prob_goal_bias: float = 0.35
     dt_check: float = 0.05
-    t_max: float = 100
+    t_max: float = 200
 
 
 # --------------------------
