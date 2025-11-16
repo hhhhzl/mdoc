@@ -8,6 +8,7 @@ from torch_robotics.robots.robot_base import RobotState
 from mdoc.utils.mdoc_constraints import *
 
 import torch._dynamo
+
 torch._dynamo.config.suppress_errors = True
 # increase this if on a stronger CPU, this will allow a large graph (N_max, H) for ConstrainTensor
 # so we can increase constraints_to_check and horizon
@@ -84,8 +85,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             disable_recommended_params: bool = True,
             device: str = 'cpu',
             compile: bool = False,
-            # compile with torch compile, not suggest to use on CPU for large number of robots > 10 and large horizon > 64
-            use_cuda_graph: bool = True,
+            # compile with torch compile
+            use_cuda_graph: bool = False,
             **kwargs
     ):
         """
@@ -169,6 +170,35 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         self.transforms = transforms
         self.context_model = context_model
 
+        self._env_bounds = {}
+        for model_id, env_model in env_models.items():
+            try:
+                if hasattr(env_model, "limits"):
+                    limits = env_model.limits
+                    # Extract as Python floats BEFORE compilation
+                    self._env_bounds[model_id] = (
+                        float(limits[0, 0].item()),
+                        float(limits[1, 0].item()),
+                        float(limits[0, 1].item()),
+                        float(limits[1, 1].item())
+                    )
+                elif hasattr(env_model, "bounds"):
+                    bounds = env_model.bounds
+                    # Handle tuple/list unpacking BEFORE compilation
+                    if isinstance(bounds, (tuple, list)) and len(bounds) >= 4:
+                        self._env_bounds[model_id] = (
+                            float(bounds[0]),
+                            float(bounds[1]),
+                            float(bounds[2]),
+                            float(bounds[3])
+                        )
+                    else:
+                        self._env_bounds[model_id] = (-2.0, 2.0, -2.0, 2.0)
+                else:
+                    self._env_bounds[model_id] = (-2.0, 2.0, -2.0, 2.0)
+            except Exception:
+                self._env_bounds[model_id] = (-2.0, 2.0, -2.0, 2.0)
+
         # for cache (ECBS calculate collision cost)
         self._centers = None
         self._radii2 = None
@@ -180,10 +210,16 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         self._sdf_tex = None
         self._sdf_tex_meta = None
 
+        self._sdf_tex_invW = None
+        self._sdf_tex_invH = None
+        self._sdf_tex_xbias = None
+        self._sdf_tex_ybias = None
+        self._sdf_tex_grid = None
+
         self.compile = compile
-        if getattr(mparams, "compile", None):
+        if getattr(mparams, "compile", None) != None:
             self.compile = mparams.compile
-        if getattr(mparams, "use_cuda_graph", None):
+        if getattr(mparams, "use_cuda_graph", None) != None:
             use_cuda_graph = mparams.use_cuda_graph
 
         if self.device == 'mps':
@@ -284,7 +320,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         )
 
         def _fn(actions: torch.Tensor, constraints):
-            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions, constraints=constraints)
+            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
+                                                   constraints=constraints)
 
         from mdoc.utils.accelerators import RolloutAccelerator
         use_amp = True if self.device in ("cuda", "mps") else False
@@ -302,6 +339,12 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         try:
             self.build_sdf_texture(model_id=0, force_rebuild=False)
+            # Pre-allocate _sdf_tex_grid before CUDA graph capture to avoid issues
+            if self.device == "cuda" and use_cuda_graph:
+                if getattr(self, "_sdf_tex", None) is not None:
+                    if (getattr(self, "_sdf_tex_grid", None) is None) or (self._sdf_tex_grid.shape[:2] != (B, H)):
+                        tex = self._sdf_tex
+                        self._sdf_tex_grid = torch.zeros(B, H, 1, 2, device=tex.device, dtype=tex.dtype)
         except Exception:
             pass
 
@@ -314,11 +357,34 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         if device.type == "cuda":
             try:
-                self.build_sdf_texture(model_id=model_id)
+                # Only build texture if it doesn't exist to avoid issues during CUDA graph capture
+                if getattr(self, "_sdf_tex", None) is None:
+                    self.build_sdf_texture(model_id=model_id)
                 if getattr(self, "_sdf_tex", None) is not None:
                     tex = self._sdf_tex
-                    invW, invH = self._sdf_tex_invW, self._sdf_tex_invH
-                    xbias, ybias = self._sdf_tex_xbias, self._sdf_tex_ybias
+                    # Use getattr with None default to avoid Dynamo attribute access issues
+                    invW = getattr(self, "_sdf_tex_invW", None)
+                    invH = getattr(self, "_sdf_tex_invH", None)
+                    xbias = getattr(self, "_sdf_tex_xbias", None)
+                    ybias = getattr(self, "_sdf_tex_ybias", None)
+
+                    if invW is None or invH is None or xbias is None or ybias is None:
+                        # Fallback: recalculate if not set
+                        meta = getattr(self, "_sdf_tex_meta", {})
+                        if meta:
+                            x_min = meta.get("x0", -2.0)
+                            y_min = meta.get("y0", -2.0)
+                            res = meta.get("res", 0.01)
+                            W = meta.get("W", 1)
+                            H_tex = meta.get("H", 1)
+                            x_max = x_min + (W - 1) * res
+                            y_max = y_min + (H_tex - 1) * res
+                            x_range = x_max - x_min
+                            y_range = y_max - y_min
+                            invW = torch.tensor(2.0 / x_range, device=tex.device, dtype=tex.dtype)
+                            invH = torch.tensor(2.0 / y_range, device=tex.device, dtype=tex.dtype)
+                            xbias = torch.tensor(-1.0 - 2.0 * x_min / x_range, device=tex.device, dtype=tex.dtype)
+                            ybias = torch.tensor(-1.0 - 2.0 * y_min / y_range, device=tex.device, dtype=tex.dtype)
 
                     x = q_ws[..., 0].to(tex.device)
                     y = q_ws[..., 1].to(tex.device)
@@ -326,9 +392,52 @@ class ModelBasedDiffusionEnsemble(nn.Module):
                     xn = x.mul(invW).add_(xbias)
                     yn = y.mul(invH).add_(ybias)
 
-                    if (self._sdf_tex_grid is None) or (self._sdf_tex_grid.shape[:2] != (B, H)):
-                        self._sdf_tex_grid = torch.empty(B, H, 1, 2, device=tex.device, dtype=tex.dtype)
+                    if (getattr(self, "_sdf_tex_grid", None) is None) or (self._sdf_tex_grid.shape[:2] != (B, H)):
+                        self._sdf_tex_grid = torch.zeros(B, H, 1, 2, device=tex.device, dtype=tex.dtype)
                     grid = self._sdf_tex_grid
+
+                    # Reshape xn and yn to match grid[..., 0] and grid[..., 1] shapes
+                    # grid[..., 0] has shape (B, H, 1), so we need xn to be (B, H, 1)
+                    # Handle different input shapes:
+                    # - When q_ws is (B, H, 2): xn is (B, H), need to add dimension -> (B, H, 1)
+                    # - When q_ws is (B*H, 1, 2): xn is (B*H, 1), need to reshape -> (B, H, 1)
+                    # - When q_ws is (B*H, 2): xn is (B*H,), need to reshape -> (B, H, 1)
+                    if xn.shape != grid[..., 0].shape:
+                        if xn.dim() == 2:
+                            if xn.shape == (B, H):
+                                # xn is (B, H), add dimension -> (B, H, 1)
+                                xn = xn.unsqueeze(-1)
+                            elif xn.shape[1] == 1:
+                                # xn is (B*H, 1), reshape to (B, H, 1)
+                                xn = xn.view(B, H, 1)
+                            else:
+                                # Unexpected shape, try to reshape
+                                xn = xn.view(B, H, 1)
+                        elif xn.dim() == 1:
+                            # xn is (B*H,), reshape to (B, H, 1)
+                            xn = xn.view(B, H, 1)
+                        else:
+                            # Already correct shape or unexpected, try to reshape
+                            xn = xn.view(B, H, 1)
+
+                    if yn.shape != grid[..., 1].shape:
+                        if yn.dim() == 2:
+                            if yn.shape == (B, H):
+                                # yn is (B, H), add dimension -> (B, H, 1)
+                                yn = yn.unsqueeze(-1)
+                            elif yn.shape[1] == 1:
+                                # yn is (B*H, 1), reshape to (B, H, 1)
+                                yn = yn.view(B, H, 1)
+                            else:
+                                # Unexpected shape, try to reshape
+                                yn = yn.view(B, H, 1)
+                        elif yn.dim() == 1:
+                            # yn is (B*H,), reshape to (B, H, 1)
+                            yn = yn.view(B, H, 1)
+                        else:
+                            # Already correct shape or unexpected, try to reshape
+                            yn = yn.view(B, H, 1)
+
                     grid[..., 0].copy_(xn)
                     grid[..., 1].copy_(yn)
 
@@ -379,11 +488,23 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         except Exception:
             x_min, x_max, y_min, y_max = -2.0, 2.0, -2.0, 2.0
 
+        # Get device from environment model to ensure tensors are on correct device
+        # Try to get device from limits tensor, tensor_args, or fallback to self.device
+        if hasattr(env0, "limits") and env0.limits is not None:
+            device = env0.limits.device
+        elif hasattr(env0, "tensor_args") and env0.tensor_args is not None:
+            device = env0.tensor_args.get("device", self.device)
+            if isinstance(device, str):
+                device = torch.device(device)
+        else:
+            device = torch.device(self.device) if isinstance(self.device, str) else self.device
+
         Wm = max(2, int(round((x_max - x_min) / res)) + 1)
         Hm = max(2, int(round((y_max - y_min) / res)) + 1)
 
-        xs = torch.linspace(x_min, x_max, Wm)
-        ys = torch.linspace(y_min, y_max, Hm)
+        # Create tensors on the correct device
+        xs = torch.linspace(x_min, x_max, Wm, device=device)
+        ys = torch.linspace(y_min, y_max, Hm, device=device)
         grid_y, grid_x = torch.meshgrid(ys, xs, indexing="ij")  # [Hm,Wm]
         P = torch.stack((grid_x.reshape(-1), grid_y.reshape(-1)), dim=-1)  # [Hm*Wm,2]
 
@@ -403,6 +524,13 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         self._sdf_tex = tex
         self._sdf_tex_meta = {"x0": x_min, "y0": y_min, "res": float(res), "H": int(Hm), "W": int(Wm)}
+
+        x_range = x_max - x_min
+        y_range = y_max - y_min
+        self._sdf_tex_invW = torch.tensor(2.0 / x_range, device=tex.device, dtype=tex.dtype)
+        self._sdf_tex_invH = torch.tensor(2.0 / y_range, device=tex.device, dtype=tex.dtype)
+        self._sdf_tex_xbias = torch.tensor(-1.0 - 2.0 * x_min / x_range, device=tex.device, dtype=tex.dtype)
+        self._sdf_tex_ybias = torch.tensor(-1.0 - 2.0 * y_min / y_range, device=tex.device, dtype=tex.dtype)
         return
 
     @torch.no_grad()
@@ -413,11 +541,20 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         except Exception:
             x_min, x_max, y_min, y_max = -2.0, 2.0, -2.0, 2.0
 
+        if hasattr(env0, "limits") and env0.limits is not None:
+            device = env0.limits.device
+        elif hasattr(env0, "tensor_args") and env0.tensor_args is not None:
+            device = env0.tensor_args.get("device", self.device)
+            if isinstance(device, str):
+                device = torch.device(device)
+        else:
+            device = torch.device(self.device) if isinstance(self.device, str) else self.device
+
         Wm = max(2, int(round((x_max - x_min) / res)) + 1)
         Hm = max(2, int(round((y_max - y_min) / res)) + 1)
 
-        xs = torch.linspace(x_min, x_max, Wm)
-        ys = torch.linspace(y_min, y_max, Hm)
+        xs = torch.linspace(x_min, x_max, Wm, device=device)
+        ys = torch.linspace(y_min, y_max, Hm, device=device)
         grid_y, grid_x = torch.meshgrid(ys, xs, indexing="ij")
         P = torch.stack((grid_x.reshape(-1), grid_y.reshape(-1)), dim=-1)
         sdf = env0.compute_sdf(P, reshape_shape=(Hm, Wm))
@@ -631,7 +768,9 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         step = (-h * 0.5).clamp_min(0.0).clamp_max(0.10)  # (B*H,)
         q_ws_flat_new = q_ws_flat + step.unsqueeze(-1) * n  # (B*H,2)
         mask_si = (h < 0.0).view(-1, 1)  # (B*H,1)
-        blended = torch.where(mask_si, q_ws_flat_new - offset, q_init_exp) if has_tf else torch.where(mask_si, q_ws_flat_new, q_init_exp)
+        blended = torch.where(mask_si, q_ws_flat_new - offset, q_init_exp) if has_tf else torch.where(mask_si,
+                                                                                                      q_ws_flat_new,
+                                                                                                      q_init_exp)
         q_init_exp.copy_(blended)
 
         # -------------------- integrate --------------------
@@ -862,7 +1001,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             active = TM_all.view(1, H, -1).expand(B, -1, -1)  # (B,H,N)
             near = (h_s < 0.08) & active  # (B,H,N)
 
-            dist_masked = torch.where(near, dist, torch.full_like(dist, 1e9)) # Top-K
+            dist_masked = torch.where(near, dist, torch.full_like(dist, 1e9))  # Top-K
             k = min(self.k_best, dist_masked.shape[-1])
             topk = torch.topk(dist_masked, k=k, dim=-1, largest=False)
             idx = topk.indices  # (B,H,K)
@@ -944,7 +1083,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         inside_goal_early = (dist_to_goal <= 0.10) & (t_idx < t_star)
         runtime_cost += self.cost_get_to_goal_early * (
-                    (t_star - t_idx).clamp(min=0).float() / H) * inside_goal_early.float()
+                (t_star - t_idx).clamp(min=0).float() / H) * inside_goal_early.float()
 
         q_ws = q_seq
         if self.transforms is not None and model_id in self.transforms:
@@ -1000,7 +1139,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if self.compile:
             costs, q_seq, free_mask = self._acc_rollout.run(actions, self.constraints_ro)
         else:
-            costs, q_seq, free_mask = self._rollout_single_batch_new2(model_id, self.state_inits.q, actions, self.constraints_ro)
+            costs, q_seq, free_mask = self._rollout_single_batch_new2(model_id, self.state_inits.q, actions,
+                                                                      self.constraints_ro)
 
         traj_0s[..., :self.robot.q_dim] = q_seq
 
@@ -1063,7 +1203,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         # calculate score function
         score = 1 / (1.0 - model_params['alphas_bar'][i]) * (
-             - traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
+                - traj_i + torch.sqrt(model_params['alphas_bar'][i]) * traj_bar)
 
         # apply smooth as soft constraints
         # score = apply_smooth_guidance_to_score(
