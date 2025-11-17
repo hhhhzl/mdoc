@@ -3,24 +3,41 @@ import torch
 
 # A central location for aggregating the parameters used across files.
 class MDOCParams:
+    device = 'cpu'
+    debug = True
+    seed = 42
+
     # Robot parameters.
     robot_planar_disk_radius = 0.05
     n_samples = 64  # Batch size. Number of trajectories generated together.
     horizon = 64  # Number of steps in the trajectory.
-    device = 'cpu'
-    debug = True
-    seed = 18
+    constraints_to_check = 30 if device == 'cpu' else 100
+    k_best = 15 if device == 'cpu' else 100
 
-    # Single-agent planning parameters.
-    temp_sample = 0.5
-    n_diffusion_steps = 100
+    # diffusion parameters.
+    temp_sample = 1e-12
+    n_diffusion_steps = 250
     beta0 = 1e-5
     betaT = 1e-2
-
-    projection_score_weight = 0.8
-    cost_target = 8.0
+    # CBF
+    cbf_tau = 0.005
+    cbf_eta = 1.5
+    cbf_margin = 0.2
+    base_beta = 0.05
+    # Cost Function
+    cost_control = 1
+    cost_distance_to_goal = 5
+    cost_time_smoothness = 1
+    cost_acc_smoothness = 1
+    cost_get_to_goal_early = 0.5
+    cost_sdf_collison = 5e3
+    cost_terminal = 20
+    projection_score_weight = 0.9
 
     # Torch.
+    compile = True
+    use_cuda_graph = False  # cuda graph is not useable
+
     tensor_args = {'device': device, 'dtype': torch.float32}
 
     # Multi-agent planning parameters.

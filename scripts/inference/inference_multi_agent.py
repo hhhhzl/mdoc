@@ -414,7 +414,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=3,
+        default=10,
         help='Number of agents'
     )
     parser.add_argument(
@@ -439,7 +439,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='KCBSLower',
+        default='MDOCEnsemble',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -473,7 +473,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmpty2D-RobotPlanarDisk',
+        default='EnvDropRegion2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -520,7 +520,7 @@ def parse_args():
     parser.add_argument(
         '--start_goal_setup',
         type=str,
-        default='circle',
+        default='boundary',
         choices=[
             'boundary',
             'circle',
@@ -570,7 +570,7 @@ if __name__ == '__main__':
 
         # Set up starts and goals
         config.agent_skeleton_l = [[[0, 0]]] * config.num_agents
-        torch.random.manual_seed(42)
+        # torch.random.manual_seed(1)
 
         if args.start_goal_setup == "boundary":
             config.start_state_pos_l, config.goal_state_pos_l = \
@@ -581,13 +581,12 @@ if __name__ == '__main__':
         elif args.start_goal_setup == "random":
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_random_in_env(
-                    env_class=EnvEmpty2D,
+                    env_class=EnvRandom2DFixed,
                     num_agents=config.num_agents,
                     tensor_args=tensor_args,
                     obstacle_margin=0.15,
                     margin=0.15,
                 )
-            print(config.start_state_pos_l, config.goal_state_pos_l)
         else:
             RuntimeError("No such choice")
 
