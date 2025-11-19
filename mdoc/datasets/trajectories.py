@@ -14,6 +14,7 @@ from mdoc.utils.loading import load_params_from_yaml
 from torch_robotics import environments, robots
 from torch_robotics.tasks.tasks import PlanningTask
 from torch_robotics.visualizers.planning_visualizer import PlanningVisualizer
+from torch_robotics.torch_utils.torch_utils import to_numpy
 
 repo = git.Repo('.', search_parent_directories=True)
 dataset_base_dir = os.path.join(repo.working_dir, 'data_trajectories')
@@ -50,6 +51,13 @@ class TrajectoryDatasetBase(Dataset, abc.ABC):
         # Robot
         robot_class = getattr(robots, self.metadata['robot_id'])
         self.robot = robot_class(tensor_args=tensor_args)
+        if hasattr(self.env, 'limits'):    
+            self.robot.q_limits = self.env.limits    
+            self.robot.q_min = self.env.limits[0]    
+            self.robot.q_max = self.env.limits[1]    
+            self.robot.q_min_np = to_numpy(self.robot.q_min)    
+            self.robot.q_max_np = to_numpy(self.robot.q_max)    
+            self.robot.q_distribution = torch.distributions.uniform.Uniform(self.robot.q_min, self.robot.q_max)
 
         # Task
         self.task = PlanningTask(env=self.env, robot=self.robot, tensor_args=tensor_args, **self.args)

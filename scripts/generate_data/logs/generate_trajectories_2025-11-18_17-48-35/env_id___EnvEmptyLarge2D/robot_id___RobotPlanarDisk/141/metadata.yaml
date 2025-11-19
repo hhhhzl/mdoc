@@ -1,0 +1,3 @@
+env_id: EnvEmptyLarge2D
+num_trajectories: 20
+robot_id: RobotPlanarDisk

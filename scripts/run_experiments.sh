@@ -59,13 +59,13 @@ python scripts/inference/launch_multi_agent_experiment.py \
   --ra
 
 
-# KCBS/MMD-CBS
+# KCBS/MMD-CBS/MDOC
 python scripts/inference/launch_multi_agent_experiment.py \
   --n 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \
   --e EnvEmpty2DRobotPlanarDiskCircle \
   --st 0 \
   --hps CBS \
-  --lps KCBSLower MMDEnsemble \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble\
   --rl 1000 \
   --nt 10 \
   --ra
@@ -74,7 +74,7 @@ python scripts/inference/launch_multi_agent_experiment.py \
   --e EnvEmpty2DRobotPlanarBoundary \
   --st 0 \
   --hps CBS \
-  --lps KCBSLower MMDEnsemble \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
   --rl 1000 \
   --nt 10 \
   --ra
@@ -83,7 +83,7 @@ python scripts/inference/launch_multi_agent_experiment.py \
   --e EnvEmpty2DRobotPlanarRandom \
   --st 0 \
   --hps CBS \
-  --lps KCBSLower MMDEnsemble  \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble  \
   --rl 1000 \
   --nt 10 \
   --ra
@@ -92,7 +92,7 @@ python scripts/inference/launch_multi_agent_experiment.py \
   --e EnvConveyor2DRobotPlanarBoundary \
   --st 0 \
   --hps CBS \
-  --lps KCBSLower MMDEnsemble \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
   --rl 1000 \
   --nt 10 \
   --ra
@@ -101,7 +101,7 @@ python scripts/inference/launch_multi_agent_experiment.py \
   --e EnvConveyor2DRobotPlanarCircle \
   --st 0 \
   --hps CBS \
-  --lps KCBSLower MMDEnsemble  \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
   --rl 1000 \
   --nt 10 \
   --ra
@@ -110,7 +110,34 @@ python scripts/inference/launch_multi_agent_experiment.py \
   --e EnvConveyor2DRobotPlanarRandom \
   --st 0 \
   --hps CBS \
-  --lps KCBSLower MMDEnsemble  \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
+  --rl 1000 \
+  --nt 10 \
+  --ra
+python scripts/inference/launch_multi_agent_experiment.py \
+  --n 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \
+  --e EnvRandom2DRobotPlanar \
+  --st 0 \
+  --hps CBS \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
+  --rl 1000 \
+  --nt 10 \
+  --ra
+python scripts/inference/launch_multi_agent_experiment.py \
+  --n 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \
+  --e EnvRandomDense2DRobotPlanar \
+  --st 0 \
+  --hps CBS \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
+  --rl 1000 \
+  --nt 10 \
+  --ra
+python scripts/inference/launch_multi_agent_experiment.py \
+  --n 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 \
+  --e EnvDropRegion2DRobotPlanar \
+  --st 0 \
+  --hps CBS \
+  --lps KCBSLower MMDEnsemble MDOCEnsemble \
   --rl 1000 \
   --nt 10 \
   --ra

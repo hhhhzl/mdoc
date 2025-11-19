@@ -1,0 +1,14 @@
+debug: false
+device: cpu
+duration: 10.0
+env_id: EnvEmptyLarge2D
+git_hash: 34207d9b37a946c12cbd273834d955d3bed8efb5
+git_url: git@github.com:yoraish/mmd.git
+is_start_goal_near_limits: false
+n_support_points: 128
+num_trajectories: 20
+obstacle_cutoff_margin: 0.05
+results_dir: ./logs/generate_trajectories_2025-11-18_17-48-35/env_id___EnvEmptyLarge2D/robot_id___RobotPlanarDisk/43
+robot_id: RobotPlanarDisk
+seed: 43
+threshold_start_goal_pos: 0.9
