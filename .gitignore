@@ -12,6 +12,8 @@ __pycache__/
 /logs
 /wandb
 
+/scripts/generate_data/logs
+
 # C extensions
 *.so
 
