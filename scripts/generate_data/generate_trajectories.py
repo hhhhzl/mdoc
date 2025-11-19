@@ -52,6 +52,14 @@ def generate_collision_free_trajectories(
     # Robot
     robot_class = getattr(robots, robot_id)
     robot = robot_class(tensor_args=tensor_args)
+    if hasattr(env, 'limits'):
+        from torch_robotics.torch_utils.torch_utils import to_numpy
+        robot.q_limits = env.limits
+        robot.q_min = env.limits[0]
+        robot.q_max = env.limits[1]
+        robot.q_min_np = to_numpy(robot.q_min)
+        robot.q_max_np = to_numpy(robot.q_max)
+        robot.q_distribution = torch.distributions.uniform.Uniform(robot.q_min, robot.q_max)
 
     # Task
     task = PlanningTask(
@@ -711,8 +719,8 @@ def experiment(
 
     robot_id: str = 'RobotPlanarDisk',
 
-    n_support_points: int = 64,
-    duration: float = 5.0,  # seconds
+    n_support_points: int = 128,
+    duration: float = 10.0,  # seconds
 
     threshold_start_goal_pos: float = 0.5,
     # threshold_start_goal_pos: float = 1.83,

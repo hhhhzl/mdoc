@@ -134,8 +134,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     # ============================
     # Transforms from tiles to global frame.
     # ============================
-    tile_width = 2.0
-    tile_height = 2.0
+    tile_width = 4.0
+    tile_height = 4.0
     global_model_transforms = [[torch.tensor([x * tile_width, -y * tile_height], **tensor_args)
                                 for x in range(len(global_model_ids[0]))] for y in range(len(global_model_ids))]
 
@@ -414,7 +414,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=10,
+        default=1,
         help='Number of agents'
     )
     parser.add_argument(
@@ -473,7 +473,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvDropRegion2D-RobotPlanarDisk',
+        default='EnvRandomLarge2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -520,7 +520,7 @@ def parse_args():
     parser.add_argument(
         '--start_goal_setup',
         type=str,
-        default='boundary',
+        default='random',
         choices=[
             'boundary',
             'circle',
@@ -581,11 +581,12 @@ if __name__ == '__main__':
         elif args.start_goal_setup == "random":
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_random_in_env(
-                    env_class=EnvRandom2DFixed,
+                    env_class=EnvRandomLarge2DFixed,
                     num_agents=config.num_agents,
                     tensor_args=tensor_args,
                     obstacle_margin=0.15,
                     margin=0.15,
+                    size=1.8
                 )
         else:
             RuntimeError("No such choice")

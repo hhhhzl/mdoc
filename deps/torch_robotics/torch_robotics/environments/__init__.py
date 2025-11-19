@@ -1,4 +1,5 @@
 from .env_empty_2d import *
+from .env_empty_large_2d import *
 from .env_empty_2d_extra_objects import *
 from .env_conveyor_2d import *
 from .env_conveyor_2d_extra_objects import *
