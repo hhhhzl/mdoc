@@ -12,7 +12,7 @@ from experiment_launcher.utils import is_local
 # num_contexts: the number of start/goal pairs.
 # num_trajectories_per_context: the number of trajectories per start/goal pair.
 
-env_id: str = 'EnvEmptyLarge2D'
+env_id: str = 'EnvTennis2D'
 robot_id: str = 'RobotPlanarDisk'
 num_contexts = 500
 num_trajectories_per_context = 20

@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[3],
+        default=[3, 6, 9, 12, 15, 20, 25, 30, 35, 40],
         help='List of number of agents to test'
     )
 
@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default=EnvironmentType.RANDOM_DISK_LARGE.value,
+        default=EnvironmentType.EMPTY_DISK_LARGE.value,
         choices=EnvironmentType.choices(),
         help='Environment/instance to use for the experiment'
     )

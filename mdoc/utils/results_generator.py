@@ -66,6 +66,7 @@ def parse_path(path):
     fields["trail"] = p.parent.name
     return fields
 
+
 order_cols = [
     "instance_name",
     "num_agents",
@@ -87,7 +88,6 @@ order_cols = [
 ]
 folder = "/Users/zhilinhe/desktop/experiment_results"
 
-
 table = []
 for root, dirs, files in os.walk(folder):
     for f in files:
@@ -108,8 +108,9 @@ for root, dirs, files in os.walk(folder):
                 dict['constraint'] = None
 
             dict['trail_path'] = full_path[:-12]
-            dict['success'] = 1 if data.success_status.value == 0 else 0 # 1 is success, 0 is unsuccess
-            dict['success_status'] = data.success_status.value # UNKNOWN = -1 SUCCESS = 0 FAIL_RUNTIME_LIMIT = 1 FAIL_COLLISION_AGENTS = 2 FAIL_NO_SOLUTION = 3
+            dict['success'] = 1 if data.success_status.value == 0 else 0  # 1 is success, 0 is unsuccess
+            dict[
+                'success_status'] = data.success_status.value  # UNKNOWN = -1 SUCCESS = 0 FAIL_RUNTIME_LIMIT = 1 FAIL_COLLISION_AGENTS = 2 FAIL_NO_SOLUTION = 3
             dict['n_collision'] = data.num_collisions_in_solution
             dict['time'] = data.planning_time
             dict['path_length'] = data.path_length_per_agent

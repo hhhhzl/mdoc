@@ -6,6 +6,9 @@ class EnvironmentType(Enum):
     EMPTY_DISK_CIRCLE = "EnvEmpty2DRobotPlanarDiskCircle"
     EMPTY_DISK_BOUNDARY = "EnvEmpty2DRobotPlanarDiskBoundary"
     EMPTY_DISK_RANDOM = "EnvEmpty2DRobotPlanarDiskRandom"
+    EMPTY_DISK_LARGE = "EnvEmptyLarge2DRobotPlanarDisk"
+    EMPTY_DISK_EXTRA_LARGE = "EnvEmptyExtraLarge2DRobotPlanarDisk"
+
     CONVEYOR_DISK_CIRCLE = 'EnvConveyor2DRobotPlanarDiskCircle'
     CONVEYOR_DISK_BOUNDARY = "EnvConveyor2DRobotPlanarDiskBoundary"
     CONVEYOR_DISK_RANDOM = "EnvConveyor2DRobotPlanarDiskRandom"
