@@ -97,7 +97,7 @@ for root, dirs, files in os.walk(folder):
                 data = pickle.load(f)
 
             dict = parse_path(full_path)
-            if "MDOC" in dict['single_agent_planner']:
+            if "MDOC" in dict['single_agent_planner'] and dict["planner"] == 'CBS':
                 types = dict['single_agent_planner'].split("_")
                 dict['dynamic'] = types[1]
                 dict['diffusion_step'] = int(types[2])
