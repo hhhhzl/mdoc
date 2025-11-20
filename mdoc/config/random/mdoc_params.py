@@ -5,7 +5,7 @@ import torch
 class MDOCParams:
     # Robot parameters.
     robot_planar_disk_radius = 0.05
-    n_samples = 128  # Batch size. Number of trajectories generated together.
+    n_samples = 256  # Batch size. Number of trajectories generated together.
     horizon = 64   # Number of steps in the trajectory.
     device = 'cpu'
     debug = True
@@ -33,7 +33,7 @@ class MDOCParams:
     projection_score_weight = 0.8
 
     # runtime
-    compile = True
+    compile = False
     use_cuda_graph = False # cuda graph is not useable
 
     # Torch.
