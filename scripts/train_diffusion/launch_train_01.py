@@ -60,7 +60,7 @@ dataset_subdir_l = [
     # 'EnvRandomDense2D-RobotPlanarDisk',
     'EnvRandomLarge2D-RobotPlanarDisk',
     'EnvRandomExtra2D-RobotPlanarDisk',
-    'EnvEmptyLarge2D-RobotPlanarDisk',
+    # 'EnvEmptyLarge2D-RobotPlanarDisk',
     # 'EnvEmptyExtraLarge2D-RobotPlanarDisk',
 ]
 
