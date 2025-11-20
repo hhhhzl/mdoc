@@ -9,7 +9,7 @@ class MDOCParams:
 
     # Robot parameters.
     robot_planar_disk_radius = 0.05
-    n_samples = 128  # Batch size. Number of trajectories generated together.
+    n_samples = 64  # Batch size. Number of trajectories generated together.
     horizon = 64  # Number of steps in the trajectory.
     constraints_to_check = 30 if device == 'cpu' else 100
     k_best = 15 if device == 'cpu' else 100
@@ -31,7 +31,7 @@ class MDOCParams:
     cost_acc_smoothness = 1
     cost_get_to_goal_early = 0.5
     cost_sdf_collison = 5e3
-    cost_terminal = 8
+    cost_terminal = 20
     projection_score_weight = 0.9
 
     # Torch.

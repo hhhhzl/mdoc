@@ -58,6 +58,8 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
             from mdoc.config.conveyor.mdoc_params import MDOCParams as params
         elif 'random' in envs_name.lower():
             from mdoc.config.random.mdoc_params import MDOCParams as params
+        elif "drop" in envs_name.lower():
+            from mdoc.config.dropregion.mdoc_params import MDOCParams as params
         else:
             # general
             from mdoc.config.mdoc_params import MDOCParams as params
@@ -414,7 +416,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=1,
+        default=2,
         help='Number of agents'
     )
     parser.add_argument(
@@ -439,7 +441,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='MDOCEnsemble',
+        default='MMDEnsemble',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -473,7 +475,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvRandom2D-RobotPlanarDisk',
+        default='EnvEmpty2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -581,7 +583,7 @@ if __name__ == '__main__':
         elif args.start_goal_setup == "random":
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_random_in_env(
-                    env_class=EnvRandom2DFixed,
+                    env_class=EnvEmpty2D,
                     num_agents=config.num_agents,
                     tensor_args=tensor_args,
                     obstacle_margin=0.15,

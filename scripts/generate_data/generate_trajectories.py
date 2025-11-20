@@ -719,8 +719,8 @@ def experiment(
 
     robot_id: str = 'RobotPlanarDisk',
 
-    n_support_points: int = 128,
-    duration: float = 10.0,  # seconds
+    n_support_points: int = 64,
+    duration: float = 5.0,  # seconds
 
     threshold_start_goal_pos: float = 0.5,
     # threshold_start_goal_pos: float = 1.83,
