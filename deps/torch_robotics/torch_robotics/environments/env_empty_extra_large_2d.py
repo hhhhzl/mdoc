@@ -12,10 +12,10 @@ from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
 from mdoc.config.mmd_params import MMDParams as params
 
 
-class EnvEmptyLarge2D(EnvBase):
+class EnvEmptyExtraLarge2D(EnvBase):
 
     def __init__(self,
-                 name='EnvEmptyLarge2D',
+                 name='EnvEmptyExtraLarge2D',
                  tensor_args=None,
                  precompute_sdf_obj_fixed=True,
                  sdf_cell_size=0.005,
@@ -45,8 +45,8 @@ class EnvEmptyLarge2D(EnvBase):
 
         super().__init__(
             name=name,
-            limits=torch.tensor([[-2, -2], [2, 2]], **tensor_args),  # Environments limits.
-            obj_fixed_list=[ObjectField(obj_list, 'emptylarge2d')],
+            limits=torch.tensor([[-3, -3], [3, 3]], **tensor_args),  # Environments limits.
+            obj_fixed_list=[ObjectField(obj_list, 'emptyextralarge2d')],
             precompute_sdf_obj_fixed=precompute_sdf_obj_fixed,
             sdf_cell_size=sdf_cell_size,
             tensor_args=tensor_args,
@@ -147,7 +147,7 @@ class EnvEmptyLarge2D(EnvBase):
 
 
 if __name__ == '__main__':
-    env = EnvEmptyLarge2D(
+    env = EnvEmptyExtraLarge2D(
         precompute_sdf_obj_fixed=True,
         sdf_cell_size=0.01,
         tensor_args=get_default_tensor_args()

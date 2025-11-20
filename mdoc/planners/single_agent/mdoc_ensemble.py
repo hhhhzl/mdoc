@@ -346,12 +346,12 @@ class MDOCEnsemble(SingleAgentPlanner):
                                                                 trajs_final_coll_idxs, trajs_final_free,
                                                                 trajs_final_free_idxs, t_total, save_data=False)
 
-            planner_visualizer = PlanningVisualizer(task=self.task)
-            planner_visualizer.render_robot_trajectories(
-                trajs=trajs_final, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
-                render_planner=False,
-            )
-            plt.show()
+            # planner_visualizer = PlanningVisualizer(task=self.task)
+            # planner_visualizer.render_robot_trajectories(
+            #     trajs=trajs_final, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
+            #     render_planner=False,
+            # )
+            # plt.show()
             import random
             # planner_visualizer.animate_robot_trajectories(
             #     trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
