@@ -8,10 +8,12 @@ from enum import Enum
 from pathlib import Path
 import torch
 from typing import Tuple, List
+import json
 
 # Project imports.
 from torch_robotics.robots import *
 from mdoc.config.mmd_experiment_configs import get_planning_problem
+from mdoc.utils.results_generator import safe_to_json, to_json
 
 
 class MultiAgentPlanningExperimentConfig:
@@ -184,8 +186,14 @@ class MultiAgentPlanningSingleTrialResult:
     def save(self, results_dir: str):
         # Save the results.
         Path(results_dir).mkdir(parents=True, exist_ok=True)
-        with open(os.path.join(results_dir, 'results.pkl'), 'wb') as f:
-            pickle.dump(self, f)
+
+        # pkl is too large for mdoc, save json instead
+        d_json = safe_to_json(to_json(self))
+        with open(os.path.join(results_dir, 'results.json'), "w", encoding="utf-8") as wf:
+            json.dump(d_json, wf, indent=2, ensure_ascii=False)
+
+        # with open(os.path.join(results_dir, 'results.pkl'), 'wb') as f:
+        #     pickle.dump(self, f)
 
         # Save a human-readable version.
         with open(os.path.join(results_dir, 'results.txt'), 'w') as f:
