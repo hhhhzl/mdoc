@@ -32,7 +32,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default=EnvironmentType.EMPTY_DISK_LARGE.value,
+        default=EnvironmentType.EMPTY_DISK_EXTRA_LARGE.value,
         choices=EnvironmentType.choices(),
         help='Environment/instance to use for the experiment'
     )
