@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[3, 6, 9, 12, 15, 20, 25, 30, 35, 40],
+        default=[3, 6, 9, 12, 15, 20, 25, 30, 35, 40, 45, 50],
         help='List of number of agents to test'
     )
 
