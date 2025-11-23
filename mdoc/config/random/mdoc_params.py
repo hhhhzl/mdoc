@@ -5,8 +5,9 @@ import torch
 class MDOCParams:
     # Robot parameters.
     robot_planar_disk_radius = 0.05
-    n_samples = 256  # Batch size. Number of trajectories generated together.
-    horizon = 64   # Number of steps in the trajectory.
+    dt = 0.05
+    n_samples = 128  # Batch size. Number of trajectories generated together.
+    horizon = 128   # Number of steps in the trajectory.
     device = 'cpu'
     debug = True
     seed = 42
@@ -16,11 +17,11 @@ class MDOCParams:
     beta0 = 1e-5
     betaT = 1e-2
     # CBF
-    cbf_tau = 0.005
-    cbf_eta = 1.5
-    cbf_margin = 0.2
-    constraints_to_check = 30 if device == 'cpu' else 100
-    k_best = 30 if device == 'cpu' else 100
+    cbf_tau = 0.03
+    cbf_eta = 1.2
+    cbf_margin = 0.1
+    constraints_to_check = 30 if device == 'cpu' else 200
+    k_best = 30 if device == 'cpu' else 200
     base_beta = 0.05
     # Cost Function
     cost_control = 1
@@ -33,7 +34,7 @@ class MDOCParams:
     projection_score_weight = 0.8
 
     # runtime
-    compile = False
+    compile = True
     use_cuda_graph = False # cuda graph is not useable
 
     # Torch.

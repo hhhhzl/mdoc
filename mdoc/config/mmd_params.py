@@ -31,7 +31,7 @@ class MMDParams:
     # Single-agent planning parameters.
     use_guide_on_extra_objects_only = False
     n_samples = 64  # Batch size. Number of trajectories generated together.
-    horizon = 128  # Number of steps in the trajectory.
+    horizon = 196  # Number of steps in the trajectory.
     n_local_inference_noising_steps = 3  # Number of noising steps in local inference.
     n_local_inference_denoising_steps = 3  # Number of denoising steps in local inference.
     start_guide_steps_fraction = 0.5  # The fraction of the inference steps that are guided.

@@ -5,14 +5,15 @@ import torch
 class MDOCParams:
     # Robot parameters.
     robot_planar_disk_radius = 0.05
+    dt = 0.05
     n_samples = 64  # Batch size. Number of trajectories generated together.
-    horizon = 64  # Number of steps in the trajectory.
+    horizon = 128  # Number of steps in the trajectory.
     device = 'cpu'
     debug = True
     seed = 18
     # Single-agent planning parameters.
     temp_sample = 0.5
-    n_diffusion_steps = 200
+    n_diffusion_steps = 100
     beta0 = 1e-5
     betaT = 1e-2
     # CBF
@@ -30,7 +31,7 @@ class MDOCParams:
     cost_get_to_goal_early = 0.5
     cost_sdf_collison = 5e3
     cost_terminal = 8
-    projection_score_weight = 0.8
+    projection_score_weight = 1
 
     # runtime
     compile = True

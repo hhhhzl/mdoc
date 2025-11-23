@@ -5,6 +5,8 @@ import argparse
 
 from mp_baselines.planners.mbd import MDOC
 
+from torch_robotics.environments.env_empty_large_2d import EnvEmptyLarge2D
+from torch_robotics.environments.env_empty_extra_large_2d import EnvEmptyExtraLarge2D
 from torch_robotics.environments.env_random_large_2d_fixed import EnvRandomLarge2DFixed
 from torch_robotics.environments.env_random_extra_large_2d_fixed import EnvRandomExtraLarge2DFixed
 from torch_robotics.robots.robot_planar_disk import RobotPlanarDisk
@@ -31,9 +33,9 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='RandomLarge',
-        choices=['RandomLarge', 'RandomExtraLarge'],
-        help='env: RandomLarge or RandomExtraLarge'
+        default='EmptyExtraLarge',
+        choices=['RandomLarge', 'RandomExtraLarge', 'EmptyLarge', 'EmptyExtraLarge'],
+        help='env: RandomLarge or RandomExtraLarge or EmptyLarge or EmptyExtraLarge'
     )
 
     parser.add_argument(
@@ -58,7 +60,7 @@ if __name__ == '__main__':
     device = get_torch_device()
     tensor_args = {'device': 'cpu', 'dtype': torch.float32}
     seed = 0
-    H = 128  # horizon
+    H = 196  # horizon
     dt = 0.067
     opt_iters_outer = 1
     plot = args.plot
@@ -75,6 +77,16 @@ if __name__ == '__main__':
             sdf_cell_size=0.01,
             tensor_args=tensor_args
         ),
+        "EmptyLarge": EnvEmptyLarge2D(
+            precompute_sdf_obj_fixed=True,
+            sdf_cell_size=0.01,
+            tensor_args=tensor_args
+        ),
+        "EmptyExtraLarge": EnvEmptyExtraLarge2D(
+            precompute_sdf_obj_fixed=True,
+            sdf_cell_size=0.01,
+            tensor_args=tensor_args
+        )
     }
     env = envs[args.e]
 
@@ -117,8 +129,8 @@ if __name__ == '__main__':
                          f"start_state: {start_state}\n"
                          f"goal_state: {goal_state}\n")
 
-    start_state = torch.tensor([-1.9, -1.9])
-    goal_state = torch.tensor([1.9, 1.9])
+    # start_state = torch.tensor([-2.9, -2.9])
+    # goal_state = torch.tensor([2.9, 2.9])
     print(f'Start state: {start_state}')
     print(f'Goal state: {goal_state}')
 

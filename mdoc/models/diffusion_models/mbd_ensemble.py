@@ -1113,10 +1113,6 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         Reverse process for single model
         """
         model_params = self.models[model_id]
-        env_model = self.env_models[model_id]
-
-        sigma_i = model_params['sigmas'][i].item()
-        # temp_step = np.interp(sigma_i, [model_params['sigmas'][-1].item(), model_params['sigmas'][0].item()], [model_params['params']['temp_sample'] * 0.5, model_params['params']['temp_sample']])
         temp_step = model_params['params']['temp_sample']
         n_samples = model_params['params']['n_samples']
 
