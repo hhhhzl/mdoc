@@ -6,9 +6,9 @@ import einops
 import torch
 
 
-#-----------------------------------------------------------------------------#
-#--------------------------- multi-field normalizer --------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# --------------------------- multi-field normalizer --------------------------#
+# -----------------------------------------------------------------------------#
 
 class DatasetNormalizer:
 
@@ -79,10 +79,9 @@ def flatten(dataset):
     return flattened
 
 
-
-#-----------------------------------------------------------------------------#
-#-------------------------- single-field normalizers -------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# -------------------------- single-field normalizers -------------------------#
+# -----------------------------------------------------------------------------#
 class Normalizer:
     '''
         parent class, subclass by defining the `normalize` and `unnormalize` methods
@@ -136,10 +135,16 @@ class GaussianNormalizer(Normalizer):
         )
 
     def normalize(self, x):
-        return (x - self.means) / self.stds
+        # Move normalization parameters to the same device as x
+        means = self.means.to(x.device)
+        stds = self.stds.to(x.device)
+        return (x - means) / stds
 
     def unnormalize(self, x):
-        return x * self.stds + self.means
+        # Move normalization parameters to the same device as x
+        means = self.means.to(x.device)
+        stds = self.stds.to(x.device)
+        return x * stds + means
 
 
 class LimitsNormalizer(Normalizer):
@@ -148,8 +153,11 @@ class LimitsNormalizer(Normalizer):
     '''
 
     def normalize(self, x):
+        # Move normalization parameters to the same device as x
+        mins = self.mins.to(x.device)
+        maxs = self.maxs.to(x.device)
         ## [ 0, 1 ]
-        x = (x - self.mins) / (self.maxs - self.mins)
+        x = (x - mins) / (maxs - mins)
         ## [ -1, 1 ]
         x = 2 * x - 1
         return x
@@ -162,10 +170,14 @@ class LimitsNormalizer(Normalizer):
             # print(f'[ datasets/mujoco ] Warning: sample out of range | ({x.min():.4f}, {x.max():.4f})')
             x = torch.clip(x, -1, 1)
 
+        # Move normalization parameters to the same device as x
+        mins = self.mins.to(x.device)
+        maxs = self.maxs.to(x.device)
+
         ## [ -1, 1 ] --> [ 0, 1 ]
         x = (x + 1) / 2.
 
-        return x * (self.maxs - self.mins) + self.mins
+        return x * (maxs - mins) + mins
 
 
 class SafeLimitsNormalizer(LimitsNormalizer):
@@ -179,8 +191,8 @@ class SafeLimitsNormalizer(LimitsNormalizer):
             if self.mins[i] == self.maxs[i]:
                 print(f'''
                     [ utils/normalization ] Constant data in dimension {i} | '''
-                    f'''max = min = {self.maxs[i]}'''
-                )
+                      f'''max = min = {self.maxs[i]}'''
+                      )
                 self.mins -= eps
                 self.maxs += eps
 

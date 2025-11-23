@@ -84,6 +84,7 @@ class PlanningTaskEnsemble(TaskEnsemble):
             traj_normalized
     ):
         trajs_iters = datasets[task_id].unnormalize_trajectories(traj_normalized)
+        normalizer = datasets[task_id].normalizer.normalizers[datasets[task_id].field_key_traj]
         trajs_final = trajs_iters[-1]
         trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs, _ = \
             (self.tasks[task_id].get_trajs_collision_and_free(trajs_final, return_indices=True))

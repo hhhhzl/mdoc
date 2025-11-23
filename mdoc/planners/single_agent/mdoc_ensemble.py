@@ -238,8 +238,7 @@ class MDOCEnsemble(SingleAgentPlanner):
         goal_state_pos_local = tasks_ensemble.inverse_transform_q(len(tasks) - 1, goal_state_pos)
         # A hard condition is a Dict[int, torch.tensor], traj ix to state.
         start_state_hard_cond = datasets[0].get_single_pt_hard_conditions(start_state_pos_local, 0, True)
-        goal_state_hard_cond = datasets[len(model_ids) - 1].get_single_pt_hard_conditions(goal_state_pos_local, -1,
-                                                                                          True)
+        goal_state_hard_cond = datasets[len(model_ids) - 1].get_single_pt_hard_conditions(goal_state_pos_local, -1, True)
         # Add to the hard conds dict. Mapping model id to its hard conditions dictionary.
         hard_conds = {0: start_state_hard_cond}
         if len(model_ids) - 1 in hard_conds:
@@ -337,6 +336,7 @@ class MDOCEnsemble(SingleAgentPlanner):
         results_ensemble = {}
         for model_index in self.models.keys():
             trajs_normalized_iters = trajs_normalized_iters_dict[model_index]
+            trajs_normalized_iters = trajs_normalized_iters / self.task.ws_limits[1][1]
             # Unnormalize trajectory samples from the models.
             trajs_iters, trajs_final, trajs_final_coll, trajs_final_coll_idxs, trajs_final_free, trajs_final_free_idxs = (
                 self.task.get_traj_unnormalized(model_index, self.datasets, trajs_normalized_iters))
@@ -345,21 +345,6 @@ class MDOCEnsemble(SingleAgentPlanner):
                                                                 trajs_final_coll,
                                                                 trajs_final_coll_idxs, trajs_final_free,
                                                                 trajs_final_free_idxs, t_total, save_data=False)
-
-            # planner_visualizer = PlanningVisualizer(task=self.task)
-            # planner_visualizer.render_robot_trajectories(
-            #     trajs=trajs_final, start_state=self.start_state_pos, goal_state=self.goal_state_pos,
-            #     render_planner=False,
-            # )
-            # plt.show()
-            import random
-            # planner_visualizer.animate_robot_trajectories(
-            #     trajs=trajs_final, start_state=start_state_pos, goal_state=goal_state_pos,
-            #     plot_trajs=True,
-            #     video_filepath=f'results/robot-traj_{random.randint(50, 100)}.gif',
-            #     n_frames=trajs_final.shape[0],
-            #     anim_time=5.0
-            # )
 
         results_ensemble = self.task.combine_trajs(results_ensemble)
 

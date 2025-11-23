@@ -20,7 +20,8 @@ from mdoc.common.conflicts import VertexConflict, PointConflict, EdgeConflict
 from mdoc.common.trajectory_utils import smooth_trajs, densify_trajs
 from mdoc.common import get_start_goal_pos_circle, get_start_goal_pos_boundary, get_start_goal_pos_random_in_env
 from mdoc.common.pretty_print import *
-from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, get_result_dir_from_trial_config, TrialSuccessStatus
+from mdoc.common.experiments import MultiAgentPlanningSingleTrialConfig, MultiAgentPlanningSingleTrialResult, \
+    get_result_dir_from_trial_config, TrialSuccessStatus
 from mdoc.planners.single_agent import (
     MDOCEnsemble,
     MPD,
@@ -140,6 +141,7 @@ def run_multi_agent_trial(test_config: MultiAgentPlanningSingleTrialConfig):
     tile_height = 2.0
     global_model_transforms = [[torch.tensor([x * tile_width, -y * tile_height], **tensor_args)
                                 for x in range(len(global_model_ids[0]))] for y in range(len(global_model_ids))]
+    print(global_model_transforms)
 
     # ============================
     # Parse the single agent planner class name.
@@ -416,7 +418,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=2,
+        default=3,
         help='Number of agents'
     )
     parser.add_argument(
@@ -441,7 +443,7 @@ def parse_args():
     parser.add_argument(
         '--lp',
         type=str,
-        default='MMDEnsemble',
+        default='MDOCEnsemble',
         choices=[
             'MDOCEnsemble',
             'MMDEnsemble',
@@ -475,7 +477,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmpty2D-RobotPlanarDisk',
+        default='EnvEmptyLarge2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -551,15 +553,19 @@ if __name__ == '__main__':
 
     if config.single_agent_planner_class in ['MDOCEnsemble']:
         from mdoc.config.mdoc_params import MDOCParams as params
+
         device = get_torch_device(params.device)
     elif config.single_agent_planner_class in ['MMDEnsemble', "MMD"]:
         from mdoc.config.mmd_params import MMDParams as params
+
         device = get_torch_device(params.device)
     elif config.single_agent_planner_class in ['WAStar', 'WAStarData']:
         from mdoc.config.wastar_params import WASTARParams as params
+
         device = get_torch_device(params.device)
     elif config.single_agent_planner_class == 'KCBSLower':
         from mdoc.config.kcbs_params import KCBSParams as params
+
         device = get_torch_device(params.device)
     else:
         raise ValueError(f'Unknown single agent planner class: {config.single_agent_planner_class}')
@@ -583,11 +589,12 @@ if __name__ == '__main__':
         elif args.start_goal_setup == "random":
             config.start_state_pos_l, config.goal_state_pos_l = \
                 get_start_goal_pos_random_in_env(
-                    env_class=EnvEmpty2D,
+                    env_class=EnvEmptyLarge2D,
                     num_agents=config.num_agents,
                     tensor_args=tensor_args,
                     obstacle_margin=0.15,
                     margin=0.15,
+                    size=2
                 )
         else:
             RuntimeError("No such choice")

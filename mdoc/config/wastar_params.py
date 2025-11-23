@@ -7,7 +7,7 @@ class WASTARParams:
     robot_planar_disk_radius = 0.05
     # Single-agent planning parameters.
     use_guide_on_extra_objects_only = False
-    horizon = 128 # for virtualization
+    horizon = 196 # for virtualization
     n_samples = 64  # Batch size. Number of trajectories generated together.
     n_local_inference_noising_steps = 3  # Number of noising steps in local inference.
     n_local_inference_denoising_steps = 3  # Number of denoising steps in local inference.

@@ -190,7 +190,7 @@ class EnvEmptyLarge2DRobotPlanarDisk(MMDPlanningProblemConfig):
                                                                                tensor_args=params.tensor_args,
                                                                                margin=0.15,
                                                                                size=2)
-        global_model_ids = [['EnvEmptyLarge2D_RobotPlanarDisk']]
+        global_model_ids = [['EnvEmptyLarge2D-RobotPlanarDisk']]
         agent_skeleton_l = [[[0, 0]]] * num_agents
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
 
@@ -204,8 +204,8 @@ class EnvEmptyExtraLarge2DRobotPlanarDisk(MMDPlanningProblemConfig):
                                                                                env_class=EnvEmptyExtraLarge2D,
                                                                                tensor_args=params.tensor_args,
                                                                                margin=0.15,
-                                                                               size=2)
-        global_model_ids = [['EnvEmptyExtraLarge2D_RobotPlanarDisk']]
+                                                                               size=3)
+        global_model_ids = [['EnvEmptyExtraLarge2D-RobotPlanarDisk']]
         agent_skeleton_l = [[[0, 0]]] * num_agents
         return start_state_pos_l, goal_state_pos_l, global_model_ids, agent_skeleton_l
 
