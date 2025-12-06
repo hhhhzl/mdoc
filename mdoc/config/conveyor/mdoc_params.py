@@ -7,12 +7,12 @@ class MDOCParams:
     robot_planar_disk_radius = 0.05
     n_samples = 64  # Batch size. Number of trajectories generated together.
     horizon = 64  # Number of steps in the trajectory.
-    device = 'cuda'
+    device = 'cpu'
     debug = True
     seed = 42
     # Single-agent planning parameters.
     temp_sample = 0.1
-    n_diffusion_steps = 100
+    n_diffusion_steps = 200
     beta0 = 1e-5
     betaT = 1e-2
     # CBF
