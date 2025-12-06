@@ -3,14 +3,18 @@ import torch
 
 # A central location for aggregating the parameters used across files.
 class MDOCParams:
+    device = 'cpu'
+    debug = True
+    seed = 42
+
     # Robot parameters.
     robot_planar_disk_radius = 0.05
     n_samples = 64  # Batch size. Number of trajectories generated together.
     horizon = 64  # Number of steps in the trajectory.
-    device = 'cpu'
-    debug = True
-    seed = 42
-    # Single-agent planning parameters.
+    constraints_to_check = 30 if device == 'cpu' else 100
+    k_best = 15 if device == 'cpu' else 100
+
+    # Diffusion parameters.
     temp_sample = 0.1
     n_diffusion_steps = 200
     beta0 = 1e-5
@@ -19,8 +23,6 @@ class MDOCParams:
     cbf_tau = 0.05
     cbf_eta = 0.8
     cbf_margin = 0.02
-    constraints_to_check = 30 if device == 'cpu' else 100
-    k_best = 15 if device == 'cpu' else 100
     base_beta = 0.05
     # Cost Function
     cost_control = 1

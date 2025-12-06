@@ -477,7 +477,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvConveyor2D-RobotPlanarDisk',
+        default='EnvDropRegion2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -524,7 +524,7 @@ def parse_args():
     parser.add_argument(
         '--start_goal_setup',
         type=str,
-        default='circle',
+        default='boundary',
         choices=[
             'boundary',
             'circle',
