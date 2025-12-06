@@ -113,6 +113,8 @@ class ModelBasedDiffusionEnsemble(nn.Module):
             from mdoc.config.conveyor.mdoc_params import MDOCParams as mparams
         elif 'random' in envs_name.lower():
             from mdoc.config.random.mdoc_params import MDOCParams as mparams
+        elif 'drop' in envs_name.lower():
+            from mdoc.config.dropregion.mdoc_params import MDOCParams as mparams
         else:
             # general
             from mdoc.config.mdoc_params import MDOCParams as mparams
@@ -320,8 +322,12 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         )
 
         def _fn(actions: torch.Tensor, constraints):
-            return self._rollout_single_batch_new2(model_id=0, state_q=self.state_inits.q, us=actions,
-                                                   constraints=constraints)
+            return self._rollout_double_batch(
+                model_id=0,
+                state_q=self.state_inits.q,
+                us=actions,
+                constraints=constraints
+            )
 
         from mdoc.utils.accelerators import RolloutAccelerator
         use_amp = True if self.device in ("cuda", "mps") else False
@@ -561,7 +567,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         return sdf, (x_min, x_max, y_min, y_max), res
 
     @torch.inference_mode()
-    def _rollout_double_batch_new2(self, model_id, state_q, us, constraints):
+    def _rollout_double_batch(self, model_id, state_q, us, constraints):
         """
         Double integrator rollout.
         Dynamics:
@@ -717,7 +723,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         return cost_sum, q_seq, free_mask
 
     @torch.inference_mode()
-    def _rollout_single_batch_new2(self, model_id, state_q, us, constraints=None):
+    def _rollout_single_batch_new(self, model_id, state_q, us, constraints=None):
         # -------------------- setup --------------------
         B, H, _ = us.shape
         device = us.device
@@ -887,7 +893,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
 
         return cost_sum, q_seq, free_mask
 
-    def _rollout_single_batch_new1(self, model_id, state_q, us, constraints=None):
+    def _rollout_single_batch(self, model_id, state_q, us, constraints=None):
         env = self.env_models[model_id]
         B, H, _ = us.shape
         device = us.device
@@ -1134,7 +1140,7 @@ class ModelBasedDiffusionEnsemble(nn.Module):
         if self.compile:
             costs, q_seq, free_mask = self._acc_rollout.run(actions, self.constraints_ro)
         else:
-            costs, q_seq, free_mask = self._rollout_single_batch_new1(model_id, self.state_inits.q, actions, self.soft_constraints)
+            costs, q_seq, free_mask = self._rollout_single_batch(model_id, self.state_inits.q, actions, self.soft_constraints)
 
         traj_0s[..., :self.robot.q_dim] = q_seq
 

@@ -198,10 +198,15 @@ def main():
 
                 dict = parse_path(full_path)
                 if "MDOC" in dict['single_agent_planner'] and dict["planner"] == 'CBS':
-                    types = dict['single_agent_planner'].split("_")
-                    dict['dynamic'] = types[1]
-                    dict['diffusion_step'] = int(types[2])
-                    dict['constraint'] = types[3]
+                    try:
+                        types = dict['single_agent_planner'].split("_")
+                        dict['dynamic'] = types[1]
+                        dict['diffusion_step'] = int(types[2])
+                        dict['constraint'] = types[3]
+                    except:
+                        dict['dynamic'] = None
+                        dict['diffusion_step'] = None
+                        dict['constraint'] = None
                 else:
                     dict['dynamic'] = None
                     dict['diffusion_step'] = None

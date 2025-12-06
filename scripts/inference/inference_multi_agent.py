@@ -418,7 +418,7 @@ def parse_args():
     parser.add_argument(
         '--n',
         type=int,
-        default=3,
+        default=10,
         help='Number of agents'
     )
     parser.add_argument(
@@ -477,7 +477,7 @@ def parse_args():
     parser.add_argument(
         '--e',
         type=str,
-        default='EnvEmptyLarge2D-RobotPlanarDisk',
+        default='EnvConveyor2D-RobotPlanarDisk',
         choices=[
             'EnvEmpty2D-RobotPlanarDisk',
             'EnvEmptyNoWait2D-RobotPlanarDisk',
@@ -524,7 +524,7 @@ def parse_args():
     parser.add_argument(
         '--start_goal_setup',
         type=str,
-        default='random',
+        default='circle',
         choices=[
             'boundary',
             'circle',
