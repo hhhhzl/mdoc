@@ -1,8 +1,3 @@
-"""
-MIT License
-Copyright (c) 2025 hhhhzl
-"""
-
 import os
 import pickle
 from math import ceil

@@ -88,19 +88,6 @@ def plot_paths(
     print(f'Saving image to: file://{os.path.abspath(save_path)}')
 
     base_file_name = Path(os.path.basename(__file__)).stem
-    # Render the paths.
-    # print(f'Rendering paths and saving to: file://{os.path.abspath(output_fpath)}')
-    # planner_visualizer.animate_multi_robot_trajectories(
-    #     trajs_l=paths_l,
-    #     start_state_l=start,
-    #     goal_state_l=goal,
-    #     plot_trajs=plot_trajs,
-    #     video_filepath=output_fpath,
-    #     n_frames=max((2, paths_l[0].shape[1])) if n_frames is None else n_frames,
-    #     anim_time=animation_duration,
-    #     constraints=None,
-    #     colors=methods_color
-    # )
 
 
 def _alpha_colormap(base_cmap, high_alpha=0.88, low_alpha=0.0):
@@ -223,24 +210,8 @@ def plot_overlay(
         legend_handles.append(Line2D([0], [0], linewidth=8, color=line_color[name]))
         legend_labels.append(f"{name.upper()}  pass {pass_rate:.1f}%")
 
-    # # Start / Goal
-    # if start is not None:
-    #     start_state_np = to_numpy(start)
-    #     if len(start_state_np) == 3:
-    #         ax.plot(start_state_np[0], start_state_np[1], start_state_np[2], 'go', markersize=radius * 100)
-    #     else:
-    #         ax.plot(start_state_np[0], start_state_np[1], 'go', markersize=radius * 100)
-    # if goal is not None:
-    #     goal_state_np = to_numpy(goal)
-    #     if len(goal_state_np) == 3:
-    #         ax.plot(goal_state_np[0], goal_state_np[1], goal_state_np[2], marker='o',
-    #                 color='purple', markersize=radius * 100)
-    #     else:
-    #         ax.plot(goal_state_np[0], goal_state_np[1], marker='o', color='purple', markersize=radius * 100)
-
     legend_handles += [Line2D([0], [0], marker='>', linestyle='', color='k'),
                        Line2D([0], [0], marker='*', linestyle='', color='k')]
-    # legend_labels  += ['Start','Goal']
 
     ax.legend(legend_handles, legend_labels, loc='lower right', framealpha=0.95)
     plt.grid(True, alpha=0.30)

@@ -16,8 +16,8 @@ setup(
     name='mdoc',
     version="0.0.1",
     description='',
-    author='hector',
-    author_email='hectorh@cmu.edu',
+    author='',
+    author_email='',
     packages=find_packages(),
     install_requires=requires_list,
 )

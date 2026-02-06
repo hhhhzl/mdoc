@@ -4,6 +4,7 @@ MIT License
 # Standard imports.
 import os
 import time
+import random
 from math import floor, ceil
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -347,8 +348,14 @@ class CBS:
             # Sort the CT.
             # Optionally replace the line below with `self.open_l.sort(key=lambda x: x.g)` to optimize for cost.
             self.open_l.sort(key=lambda x: len(x.conflict_l))
-            # Get the first node from the open list.
-            state = self.open_l.pop(0)
+
+            # Randomly select a node from the open list (Experiments for fixed Starts and Goals).
+            idx = random.randint(0, len(self.open_l) - 1)
+            state = self.open_l.pop(idx)
+
+            # # Get the first node from the open list.
+            # state = self.open_l.pop(0)
+
             # Check if the conflict set is empty.
             if not state.conflict_l:
                 print('No conflicts found in CT node. GOAL.')

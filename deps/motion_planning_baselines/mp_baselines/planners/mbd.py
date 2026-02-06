@@ -8,8 +8,6 @@ from mdoc.common import smooth_trajs
 class MDOC(MPPlanner):
     """
     MDOC planner
-
-    Drop-in alternative to MPPI:
       - same optimize() signature & return (control_samples, state_trajectories, costs)
       - get_recent_samples(), get_mean_controls(), pop(), shift(), get_state_trajectories_rollout()
 
@@ -171,7 +169,7 @@ class MDOC(MPPlanner):
         actions = traj_0s[..., self.state_dim:]
 
         # Batch rollout & cost with collision awareness
-        costs, q_seq, free_mask = self._ensemble._rollout_single_batch_new1(
+        costs, q_seq, free_mask = self._ensemble._rollout_single_batch(
             model_id=0, state_q=self._ensemble.state_inits.q, us=actions
         )
 
