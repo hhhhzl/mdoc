@@ -98,7 +98,7 @@ lr = 3e-4
 
 wandb_options = dict(
     wandb_mode='online',  # "online", "offline" or "disabled"
-    wandb_entity='zhilinhe-carnegie-mellon-university',  # "username" // "teamname"
+    wandb_entity='',  # "username" // "teamname"
     wandb_project=exp_name
 )
 

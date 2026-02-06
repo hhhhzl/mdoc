@@ -34,7 +34,7 @@ class MDOCParams:
     projection_score_weight = 0.8
 
     # runtime
-    compile = True
+    compile = False
     use_cuda_graph = False # cuda graph is not useable
 
     # Torch.

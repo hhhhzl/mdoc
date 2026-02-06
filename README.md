@@ -1,10 +1,11 @@
-# Model-Based Diffusion Optimal Control in Multi-Robot Motion Planning
+# Model-Based Diffusion Optimal Control for Multi-Robot Motion Planning
 
 ---
 
-## Introduction
+[//]: # (## Introduction)
 
-Model-Based Diffusion Optimal Control in Multi-Robot Motion Planning
+[//]: # ()
+[//]: # (Model-Based Diffusion Optimal Control for Multi-Robot Motion Planning)
 
 
 ## Installation
@@ -13,42 +14,34 @@ Model-Based Diffusion Optimal Control in Multi-Robot Motion Planning
   - Python >= 3.10
 #### Supports:
   - ubuntu == 22.04
-  - cuda == 11.8.0
-  - pytorch == 2.1.0
+  - cuda == 11.8.0 / 12.1.1
+  - pytorch == 2.1.0 / 2.2.0
   - MacOS mps chips (Not recommend)
 ```
 ./scripts/bash/setup.sh
 ```
-## Planning with MDOC
 
-## Planning with MMD
-mmd produces data-driven multi-robot trajectories in a single map or in a collection of "tiled" local maps. Let's take a look at how to use it.
-#### Download Trajectory Data and Pre-trained Diffusion Model
+## Main Pipeline
+```
+/mdoc/planners/multi_agent/cbs.py --> 
+/mdoc/planners/single_agent/mdoc_ensemble.py -->
+/mdoc/models/diffusion_models/mbd_ensemble.py # Main MDOC Implementation
+```
 
-```commandline
-cd scripts/bash
-./download.sh
+## Baselines
 ```
-#### Inference with MMD
-```commandline
-cd scripts/bash
-./run_inference.sh --method=mmd
+Please check mdoc/baselines for all baseline implementation
 ```
+
 
 ## Reproduce Our Experiments
-
+```
+./scripts/run_experiments.sh
+```
 
 ## Citation
 If you use our work or code in your research, please cite our paper:
 ```
-@inproceedings{
-shaoul2025multirobot,
-title={Multi-Robot Motion Planning with Diffusion Models},
-author={Yorai Shaoul and Itamar Mishani and Shivam Vats and Jiaoyang Li and Maxim Likhachev},
-booktitle={The Thirteenth International Conference on Learning Representations},
-year={2025},
-url={https://openreview.net/forum?id=AUCYptvAf3}
-}
 ```
 
 ## Credits

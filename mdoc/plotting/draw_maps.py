@@ -9,7 +9,9 @@ from torch_robotics.environments import (
     EnvRandom2D,
     EnvRandomDense2D,
     EnvRandomLarge2D,
-    EnvTennis2D
+    EnvTennis2D,
+    EnvEmptyLarge2D,
+    EnvDropRegion2D
 )
 from torch_robotics.torch_utils.torch_utils import get_default_tensor_args
 from torch_robotics.visualizers.planning_visualizer import create_fig_and_axes
@@ -21,12 +23,14 @@ from mdoc.common import (
 
 if __name__ == "__main__":
     map = {
-        "empty": EnvEmpty2D,
-        "conveyor": EnvConveyor2D,
-        "narrow": EnvTennis2D,
-        "random": EnvRandom2D,
-        "random_dense": EnvRandomDense2D,
-        "random_large": EnvRandomLarge2D
+        # "empty": EnvEmpty2D,
+        # "conveyor": EnvConveyor2D,
+        # "narrow": EnvTennis2D,
+        # "random": EnvRandom2D,
+        # "random_dense": EnvRandomDense2D,
+        # "random_large": EnvRandomLarge2D,
+        "empty_large": EnvEmptyLarge2D,
+        "drop": EnvDropRegion2D
     }
     tensor_args = get_default_tensor_args()
     device = tensor_args['device']
@@ -44,6 +48,11 @@ if __name__ == "__main__":
         "random_large": {
             "num_agents": 15,
             "margin": 0.5,
+            "obstacle_margin": 0.08,
+        },
+        "empty_large": {
+            "num_agents": 20,
+            "margin": 0.3,
             "obstacle_margin": 0.08,
         },
     }
@@ -72,7 +81,7 @@ if __name__ == "__main__":
             start_state_pos_l = [torch.tensor([-0.8, 0.0], dtype=torch.float32, device=device)]
             goal_state_pos_l = [torch.tensor([0.8, 0.0], dtype=torch.float32, device=device)]
         else:
-            if key == "empty":
+            if key == "empty" or key == "drop":
                 start_state_pos_l, goal_state_pos_l = get_start_goal_pos_boundary(num_agents=12, dist=0.87, device=device)
             else:
                 start_state_pos_l, goal_state_pos_l = get_start_goal_pos_circle(num_agents=12, radius=0.8, device=device)

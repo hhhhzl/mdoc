@@ -131,7 +131,7 @@ def to_json(data):
 
 
 def save_to_json():
-    folder = "/Users/zhilinhe/desktop/experiment_results"
+    folder = "/Users/desktop/experiment_results"
 
     for root, dirs, files in os.walk(folder):
         for f in files:
@@ -152,7 +152,7 @@ def save_to_json():
                     print(f"Saved to: {save_path}")
 
 def delete_pkl():
-    folder = "/Users/zhilinhe/desktop/experiment_results"
+    folder = "/Users/desktop/experiment_results"
 
     for root, dirs, files in os.walk(folder):
         for f in files:
@@ -174,6 +174,7 @@ def main():
         "single_agent_planner",
         "trail",
         "success",
+        "success_status",
         "n_collision",
         "time",
         "path_length",
@@ -186,7 +187,7 @@ def main():
         "constraint",
         "trail_path",
     ]
-    folder = "/Users/zhilinhe/desktop/experiment_results"
+    folder = "<PATH/TO/RESULT/FOLDER>"
 
     table = []
     for root, dirs, files in os.walk(folder):

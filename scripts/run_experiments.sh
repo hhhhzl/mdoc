@@ -1,4 +1,4 @@
-#!/bin/bash python
+#!/bin/bash
 
 # A* CBS/ ECBS
 # for Circle and Boundary setup, the start/goal will be same for each seed, so we just run 1 trail (only difference will be running time.)
