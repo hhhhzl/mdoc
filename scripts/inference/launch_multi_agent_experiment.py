@@ -24,7 +24,7 @@ def parse_args():
         '--n',
         nargs='+',
         type=int,
-        default=[17],
+        default=[10],
         help='List of number of agents to test'
     )
 
@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument(
         '--hps',
         nargs='+',
-        default=[MultiAgentPlannerType.ECBS.value],
+        default=[MultiAgentPlannerType.CBS.value],
         choices=MultiAgentPlannerType.choices(),
         help='List of multi-agent planners to test'
     )
@@ -57,7 +57,7 @@ def parse_args():
     parser.add_argument(
         '--lps',
         nargs='+',
-        default=[LowerPlannerMethodType.WASTAR.value],
+        default=[LowerPlannerMethodType.MDOC.value],
         choices=LowerPlannerMethodType.choices(),
         help='Single agent planner to use'
     )
