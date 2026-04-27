@@ -98,7 +98,7 @@ The MDOC framework is organized into three hierarchical layers, where each layer
 > [!NOTE]
 > Running the full experiment suite end-to-end takes a long time. We recommend executing the commands individually or reducing the number of trials per configuration.
 
-The dataset for reproducing **MMD-CBS** baselines is available on [Google Drive](https://drive.google.com/file/d/10DiuwkccMDNBFkTMfXRTj7f8gO1TCah_/view?usp=sharing). Please refer to the upstream [MMD repository](https://github.com/yoraish/mmd) for further details.
+The dataset for reproducing **MMD-CBS** baselines is available on [Google Drive](https://drive.google.com/file/d/10DiuwkccMDNBFkTMfXRTj7f8gO1TCah_/view?usp=sharing). Please refer to the upstream [MMD repository](https://github.com/yoraish/mmd) for model-free pretraining and more details.
 
 ---
 
