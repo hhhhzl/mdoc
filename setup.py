@@ -15,9 +15,9 @@ with open(path.join(here, 'requirements.txt'), encoding='utf-8') as f:
 setup(
     name='mdoc',
     version="0.0.1",
-    description='',
-    author='',
-    author_email='',
+    description='Model-Based Diffusion Optimal Control for Multi-Robot Motion Planning',
+    author='Zhilin He',
+    author_email='hectorhe@andrew.cmu.edu',
     packages=find_packages(),
     install_requires=requires_list,
 )
