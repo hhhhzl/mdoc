@@ -25,12 +25,12 @@ if __name__ == "__main__":
     map = {
         # "empty": EnvEmpty2D,
         # "conveyor": EnvConveyor2D,
-        # "narrow": EnvTennis2D,
+        "narrow": EnvTennis2D,
         # "random": EnvRandom2D,
+        "empty_large": EnvEmptyLarge2D,
+        # "drop": EnvDropRegion2D,
         # "random_dense": EnvRandomDense2D,
         # "random_large": EnvRandomLarge2D,
-        "empty_large": EnvEmptyLarge2D,
-        "drop": EnvDropRegion2D
     }
     tensor_args = get_default_tensor_args()
     device = tensor_args['device']
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                 margin=config["margin"],
                 obstacle_margin=config["obstacle_margin"],
                 reload_env=False,
-                size=2,
+                size=2 if "large" in key else 1,
             )
         elif key == 'narrow':
             start_state_pos_l = [torch.tensor([-0.8, 0.0], dtype=torch.float32, device=device)]
@@ -92,33 +92,39 @@ if __name__ == "__main__":
             color = plt.cm.tab20(color_indices[idx])
             start_xy = start_state_pos.detach().cpu().numpy()
             goal_xy = goal_state_pos.detach().cpu().numpy()
-            if key not in ['empty', 'conveyor']:
-                start_marker = patches.Rectangle(
-                    (start_xy[0] - 0.025, start_xy[1] - 0.025),
-                    0.05,
-                    0.05,
-                    facecolor=color,
-                    edgecolor='none',
-                    linewidth=0
-                )
-            else:
-                start_marker = patches.Circle(
-                    (start_xy[0], start_xy[1]),
-                    radius=0.025,
-                    facecolor=color,
-                    edgecolor='none',
-                    linewidth=0
-            )
+            marker_size = 0.06
+            half = marker_size / 2
+            is_swap = key in ['empty', 'conveyor', 'drop']
 
-            goal_marker = patches.Circle(
-                (goal_xy[0], goal_xy[1]),
-                radius=0.025,
+            start_square = patches.Rectangle(
+                (start_xy[0] - half, start_xy[1] - half),
+                marker_size,
+                marker_size,
                 facecolor=color,
                 edgecolor='none',
                 linewidth=0
             )
-            ax.add_patch(start_marker)
-            ax.add_patch(goal_marker)
+            ax.add_patch(start_square)
+
+            if is_swap:
+                goal_square = patches.Rectangle(
+                    (goal_xy[0] - half, goal_xy[1] - half),
+                    marker_size,
+                    marker_size,
+                    facecolor=color,
+                    edgecolor='none',
+                    linewidth=0
+                )
+                ax.add_patch(goal_square)
+            else:
+                goal_circle = patches.Circle(
+                    (goal_xy[0], goal_xy[1]),
+                    radius=half,
+                    facecolor=color,
+                    edgecolor='none',
+                    linewidth=0
+                )
+                ax.add_patch(goal_circle)
         ax.axis('off')
         fig.savefig(output_dir / f"{key}.png", bbox_inches="tight", pad_inches=0.05)
         # plt.show()
