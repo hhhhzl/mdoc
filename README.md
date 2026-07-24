@@ -6,7 +6,7 @@ Welcome to our repository implementing MDOC, as presented in:
 <tr>
 <td style="vertical-align: middle; border: none;">
   <a href="">
-    <img src="https://img.shields.io/badge/arxiv-%23B31B1B.svg?&style=for-the-badge&logo=arxiv&logoColor=white" alt="arxiv link">
+    <img src="https://img.shields.io/badge/arxiv-%23B31B1B.svg?&style=for-the-badge&logo=arxiv&logoColor=white" alt="https://arxiv.org/abs/2607.12423">
   </a>
 </td>
 <td style="vertical-align: middle; border: none;">
@@ -51,7 +51,7 @@ Welcome to our repository implementing MDOC, as presented in:
 
 ## Updates
 
-- **[2026-04-27]** The work has been accepted to **RSS 2026** and open-sourced. 🎉🎉 The final version will be uploaded to arXiv shortly. The current manuscript is available on [Google Drive](https://drive.google.com/file/d/10DiuwkccMDNBFkTMfXRTj7f8gO1TCah_/view?usp=sharing).
+- **[2026-04-27]** The work has been accepted to **RSS 2026** and open-sourced. 🎉🎉
 
 ---
 
@@ -150,11 +150,11 @@ See [`scripts/run_experiments.sh`](scripts/run_experiments.sh) for the full set 
 If you find our work useful in your research, please cite:
 
 ```bibtex
-@inproceedings{he2026mdoc,
-  title     = {Model-Based Diffusion Optimal Control for Multi-Robot Motion Planning},
-  author    = {He, Zhilin and Shaoul, Yorai and Li, Jiaoyang},
-  booktitle = {Robotics: Science and Systems (RSS)},
-  year      = {2026}
+@article{he2026model,
+  title={Model-Based Diffusion Optimal Control for Multi-Robot Motion Planning},
+  author={He, Zhilin and Shaoul, Yorai and Li, Jiaoyang},
+  journal={arXiv preprint arXiv:2607.12423},
+  year={2026}
 }
 ```
 
