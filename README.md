@@ -5,8 +5,11 @@ Welcome to our repository implementing MDOC, as presented in:
 <table style="border: none;">
 <tr>
 <td style="vertical-align: middle; border: none;">
-  <a href="">
-    <img src="https://img.shields.io/badge/arxiv-%23B31B1B.svg?&style=for-the-badge&logo=arxiv&logoColor=white" alt="https://arxiv.org/abs/2607.12423">
+  <a href="https://arxiv.org/abs/2607.12423">
+  <img
+    src="https://img.shields.io/badge/arXiv-%23B31B1B.svg?style=for-the-badge&logo=arxiv&logoColor=white"
+    alt="arXiv paper"
+  >
   </a>
 </td>
 <td style="vertical-align: middle; border: none;">
