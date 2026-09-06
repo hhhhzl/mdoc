@@ -156,7 +156,7 @@ If you find our work useful in your research, please cite:
 @article{he2026model,
   title={Model-Based Diffusion Optimal Control for Multi-Robot Motion Planning},
   author={He, Zhilin and Shaoul, Yorai and Li, Jiaoyang},
-  journal={arXiv preprint arXiv:2607.12423},
+  journal={Robotics: Science and Systems},
   year={2026}
 }
 ```
